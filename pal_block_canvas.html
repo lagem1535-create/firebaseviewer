@@ -1,0 +1,2531 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PAL Block Canvas - 초간편 비주얼 블록 빌더</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Pretendard:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --primary: #2563eb;
+            --primary-light: #eff6ff;
+            --grid-color: rgba(148, 163, 184, 0.08);
+        }
+
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background-color: #f8fafc;
+            color: #1e293b;
+        }
+        
+        .code-font {
+            font-family: 'Fira Code', monospace;
+        }
+
+        /* Blueprint Canvas Grid Background (White Mode) */
+        .blueprint-canvas {
+            background-color: #ffffff;
+            background-image: 
+                linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
+                linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        /* Beautiful Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Block Highlight Action */
+        .block-running {
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.5);
+            transform: scale(1.02);
+            transition: all 0.2s ease-out;
+        }
+
+        /* Block Drop Shadow & Hover effect */
+        .block-card {
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .block-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.08), 0 4px 6px -4px rgb(0 0 0 / 0.08);
+        }
+        
+        /* Smooth transitions for container reordering */
+        .layout-transition {
+            transition: order 0.3s ease, min-width 0.3s ease, width 0.3s ease;
+        }
+
+        /* [블록 크기 조절 시스템] */
+        #workspace-canvas.size-small .canvas-block-instance {
+            padding: 0.5rem 0.75rem;
+            gap: 0.5rem;
+            border-radius: 0.5rem;
+        }
+        #workspace-canvas.size-small .canvas-block-instance input,
+        #workspace-canvas.size-small .canvas-block-instance select {
+            padding: 0.125rem 0.25rem;
+            font-size: 10px;
+            width: 6.5rem;
+        }
+        #workspace-canvas.size-small .canvas-block-instance span {
+            font-size: 10px;
+        }
+        #workspace-canvas.size-small .canvas-block-instance svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        #workspace-canvas.size-large .canvas-block-instance {
+            padding: 1.25rem 1.5rem;
+            gap: 1.5rem;
+            border-radius: 1.5rem;
+        }
+        #workspace-canvas.size-large .canvas-block-instance input,
+        #workspace-canvas.size-large .canvas-block-instance select {
+            padding: 0.5rem 0.75rem;
+            font-size: 13px;
+            width: 10rem;
+        }
+        #workspace-canvas.size-large .canvas-block-instance span {
+            font-size: 13px;
+        }
+        #workspace-canvas.size-large .canvas-block-instance svg {
+            width: 20px;
+            height: 20px;
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex flex-col">
+
+    <!-- 1. 게이트웨이 화면 (로그인 및 안전한 접속 가드) -->
+    <div id="auth-gate" class="fixed inset-0 bg-slate-100 z-50 flex items-center justify-center p-4 transition-all duration-300">
+        <div class="absolute w-96 h-96 bg-blue-300/20 rounded-full blur-3xl top-1/4 left-1/4 pointer-events-none animate-pulse"></div>
+        <div class="absolute w-96 h-96 bg-indigo-300/20 rounded-full blur-3xl bottom-1/4 right-1/4 pointer-events-none animate-pulse" style="animation-delay: 2s;"></div>
+
+        <div class="bg-white border border-slate-200 rounded-3xl p-8 w-full max-w-lg shadow-2xl relative z-10 flex flex-col max-h-[90vh] overflow-y-auto">
+            <div class="text-center mb-6">
+                <div class="inline-flex p-3.5 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-2xl mb-4 text-white shadow-md shadow-blue-500/10">
+                    <i data-lucide="toy-brick" class="w-8 h-8 animate-bounce"></i>
+                </div>
+                <h1 class="text-2xl font-black text-slate-900 tracking-tight">PAL Block Canvas</h1>
+                <p class="text-slate-500 text-xs mt-1.5 leading-relaxed">비주얼 블록 조립으로 다루는 세상에서 가장 쉬운 파이어베이스 실시간 DB & Gemini AI</p>
+            </div>
+
+            <!-- 소셜 계정 로그인 버튼 -->
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <button onclick="handleSocialSignIn('Google')" class="flex items-center justify-center gap-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold py-2.5 px-4 rounded-xl shadow-sm transition-all text-xs">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24">
+                        <path fill="#EA4335" d="M12.24 10.285V13.4h6.887C18.2 15.614 15.645 18 12.24 18c-3.86 0-7-3.14-7-7s3.14-7 7-7c1.7 0 3.3.6 4.6 1.7l2.4-2.4C17.3 1.5 14.9.8 12.24.8c-5.5 0-10 4.5-10 10s4.5 10 10 10c5.8 0 9.7-4.1 9.7-9.9 0-.6-.1-1.2-.2-1.7H12.24z"/>
+                    </svg>
+                    Google 로그인
+                </button>
+
+                <button onclick="handleSocialSignIn('Whale')" class="flex items-center justify-center gap-2 bg-[#00c73c]/5 hover:bg-[#00c73c]/10 border border-[#00c73c]/30 text-[#00b135] font-bold py-2.5 px-4 rounded-xl shadow-sm transition-all text-xs">
+                    <i data-lucide="compass" class="w-4 h-4"></i>
+                    Whale 로그인
+                </button>
+            </div>
+
+            <div class="relative flex items-center py-2 mb-4">
+                <div class="flex-grow border-t border-slate-200"></div>
+                <span class="flex-shrink mx-3 text-slate-400 text-[10px] font-bold uppercase tracking-wider">또는 개발자 수동 연결</span>
+                <div class="flex-grow border-t border-slate-200"></div>
+            </div>
+
+            <!-- 실시간 DB 주소 입력 및 설정 영역 -->
+            <form id="db-setup-form" onsubmit="handleManualConnect(event)" class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">실시간 DB 주소 직접 입력하기</label>
+                    <input type="url" id="db-address" required placeholder="https://your-rtdb-project.firebaseio.com/" class="block w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 focus:outline-none focus:bg-white focus:border-blue-500 transition-all font-mono">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">인증 토큰 (선택사항)</label>
+                    <input type="password" id="db-token" placeholder="Database Secret 토큰 기입" class="block w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-xs text-slate-700 focus:outline-none focus:bg-white focus:border-blue-500 transition-all">
+                </div>
+
+                <div class="pt-1">
+                    <p class="text-[10px] text-slate-400 font-bold mb-2">원클릭 빠른 데모 연결</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" onclick="loadPreset('pal-coop')" class="flex items-center justify-center gap-1.5 py-2 px-1 border border-slate-200 hover:border-blue-500 rounded-lg text-[10px] font-bold text-slate-600 hover:text-blue-600 transition-all bg-slate-50 hover:bg-blue-50/20">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            PAL 협업 기본 DB
+                        </button>
+                        <button type="button" onclick="loadPreset('demo-sandbox')" class="flex items-center justify-center gap-1.5 py-2 px-1 border border-slate-200 hover:border-blue-500 rounded-lg text-[10px] font-bold text-slate-600 hover:text-blue-600 transition-all bg-slate-50 hover:bg-blue-50/20">
+                            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            테스트용 데모 DB
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-xl text-xs transition-all flex items-center justify-center gap-2 shadow-sm">
+                    <i data-lucide="plug" class="w-4 h-4"></i>
+                    데이터베이스 수동 연결하기
+                </button>
+            </form>
+
+            <div class="relative flex items-center py-2 my-2">
+                <div class="flex-grow border-t border-slate-100"></div>
+                <span class="flex-shrink mx-3 text-slate-300 text-[9px] font-bold uppercase tracking-widest">강력 추천 모드</span>
+                <div class="flex-grow border-t border-slate-100"></div>
+            </div>
+
+            <!-- 즉시 시작 로컬 시뮬레이터 -->
+            <button onclick="startLocalSimulator()" class="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-extrabold py-3 px-4 rounded-xl text-xs tracking-wide transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/15 active:scale-[0.99]">
+                <i data-lucide="monitor-play" class="w-4.5 h-4.5 animate-pulse"></i>
+                로컬 시뮬레이터로 즉시 사용 (추천 🌟)
+            </button>
+
+            <p class="text-center text-[10px] text-slate-400 mt-5 leading-relaxed">
+                사용자 개인 정보와 로그인 세션은 웹 브라우저 내부에만 안전하게 암호화 보관됩니다.
+            </p>
+        </div>
+    </div>
+
+    <!-- 2. 메인 어플리케이션 인터페이스 헤더 -->
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex flex-col md:flex-row items-center justify-between shrink-0 gap-4 z-10">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl text-white shadow-lg shadow-blue-500/15">
+                <i data-lucide="toy-brick" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h2 class="font-bold text-slate-900 tracking-tight text-sm">PAL Block Canvas</h2>
+                    <span id="sync-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100">
+                        <span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span>
+                        온라인 연동 중
+                    </span>
+                </div>
+                <div class="flex items-center gap-1 text-[11px] text-slate-500 mt-0.5 font-mono">
+                    <span id="active-db-url" class="truncate max-w-[280px] font-medium">연결되지 않음</span>
+                    <button onclick="handleSignOut()" class="text-rose-500 hover:text-rose-700 font-bold hover:underline ml-1">
+                        끊기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 레이아웃 조절용 컨트롤 패널 -->
+        <div class="flex items-center gap-3 flex-wrap">
+            <div class="bg-slate-100 p-1 rounded-xl border border-slate-200 flex items-center gap-1 text-xs">
+                <span class="px-2 py-1 text-[9px] font-extrabold text-slate-500 uppercase tracking-widest">배치:</span>
+                <button onclick="toggleSidebarLayout()" class="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-[10px] font-bold transition-all shadow-xs flex items-center gap-0.5">
+                    <i data-lucide="layout-sidebar" class="w-3 h-3 text-blue-600"></i>
+                    보관함 좌/우
+                </button>
+                <button onclick="togglePreviewLayout()" class="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-[10px] font-bold transition-all shadow-xs flex items-center gap-0.5">
+                    <i data-lucide="layout-panel-right" class="w-3 h-3 text-indigo-600"></i>
+                    가이드 좌/우
+                </button>
+            </div>
+
+            <!-- 로그인 소속 배지 -->
+            <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                <div id="user-avatar" class="w-6.5 h-6.5 rounded-xl bg-blue-600 text-white font-extrabold flex items-center justify-center text-xs shadow-sm">
+                    U
+                </div>
+                <div class="text-left hidden sm:block">
+                    <p id="user-name" class="text-[11px] font-bold text-slate-800">방문자님</p>
+                    <p id="user-auth-badge" class="text-[9px] text-slate-400 font-mono">게스트 계정</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 3. 메인 작업 구역 (왼쪽 블록 보관함 / 중간 블록 조립 캔버스 / 오른쪽 데이터 프리뷰) -->
+    <div class="flex-1 flex overflow-hidden w-full relative">
+        
+        <!-- [A] 블록 보관함 (Palette) - Flex Order 1 -->
+        <aside id="palette-aside" class="layout-transition w-72 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden order-1">
+            <div class="p-4 border-b border-slate-200 bg-slate-50/50">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-black text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
+                        <i data-lucide="layout-grid" class="w-4 h-4 text-blue-600"></i>
+                        블록 보관함
+                    </h3>
+                    <span id="palette-count" class="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-bold font-mono">32 Blocks</span>
+                </div>
+                <p class="text-[10px] text-slate-400 mt-1">블록을 클릭하면 오른쪽 작업판에 추가됩니다.</p>
+                
+                <!-- 블록 실시간 검색창 도입 -->
+                <div class="relative mt-3">
+                    <input type="text" id="palette-search" placeholder="블록 이름이나 기능 검색..." oninput="filterPalette()" class="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-blue-500 font-medium">
+                    <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5"></i>
+                </div>
+            </div>
+
+            <!-- 카테고리별 아코디언식 블록 스크롤 컨테이너 -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="palette-container">
+                <!-- JS에서 총 32개 이상의 블록이 분류별로 자동 렌더링됩니다. -->
+            </div>
+            
+            <div class="p-3 bg-slate-50 border-t border-slate-200 text-[10px] text-slate-400 leading-relaxed">
+                💡 <strong>블록 순서 정렬:</strong> 각 블록의 상/하 화살표를 누르면 실행 순서를 변경할 수 있습니다.
+            </div>
+        </aside>
+
+        <!-- [B] 비주얼 블록 조립 캔버스 (Canvas Workspace) - Flex Order 2 -->
+        <section id="workspace-section" class="layout-transition flex-1 flex flex-col bg-slate-50 overflow-hidden relative blueprint-canvas order-2 border-r border-l border-slate-200/50">
+            
+            <!-- 캔버스 컨트롤 바 -->
+            <div class="bg-white border-b border-slate-200 px-6 py-2.5 flex items-center justify-between shrink-0 z-10 shadow-xs flex-wrap gap-2">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-blue-600"></span>
+                        <h3 class="text-xs font-bold text-slate-700">캔버스 프로그램 조립소 (Canvas)</h3>
+                    </div>
+                    
+                    <!-- [블록 크기 조절 시스템] UI 토글 -->
+                    <div class="bg-slate-100 p-0.5 rounded-lg border border-slate-200 flex items-center gap-1 text-[10px]">
+                        <span class="px-1.5 font-bold text-slate-400 uppercase">크기:</span>
+                        <button onclick="changeBlockSize('small')" id="btn-size-small" class="px-2 py-0.5 hover:bg-white/80 text-slate-600 rounded font-semibold transition-all">작게</button>
+                        <button onclick="changeBlockSize('medium')" id="btn-size-medium" class="px-2 py-0.5 bg-white text-blue-600 rounded font-bold shadow-xs transition-all">보통</button>
+                        <button onclick="changeBlockSize('large')" id="btn-size-large" class="px-2 py-0.5 hover:bg-white/80 text-slate-600 rounded font-semibold transition-all">크게</button>
+                    </div>
+                </div>
+
+                <!-- 실행 및 세이브, 블록 JSON 가져오기/내보내기 버튼 -->
+                <div class="flex items-center gap-1.5">
+                    <!-- [블록 설정 JSON 넣기 빼기] -->
+                    <button onclick="importBlocksFromJson()" class="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1" title="블록 파일 가져오기 (넣기)">
+                        <i data-lucide="folder-input" class="w-3.5 h-3.5"></i>
+                        가져오기 (JSON)
+                    </button>
+                    <button onclick="exportBlocksToJson()" class="px-2.5 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-[10px] font-bold transition-all flex items-center gap-1" title="블록 파일 내보내기 (빼기)">
+                        <i data-lucide="folder-output" class="w-3.5 h-3.5"></i>
+                        내보내기
+                    </button>
+                    <div class="h-6 w-px bg-slate-200 mx-1"></div>
+                    <button onclick="clearWorkspace()" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all flex items-center gap-1">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        비우기
+                    </button>
+                    <button onclick="executeBlockProgram()" class="px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md shadow-blue-500/10">
+                        <i data-lucide="play" class="w-4 h-4 fill-white animate-pulse"></i>
+                        프로그램 실행
+                    </button>
+                </div>
+            </div>
+
+            <!-- 블록들이 조립되는 작업판 (기본크기: medium) -->
+            <div id="workspace-canvas" class="flex-1 overflow-y-auto p-6 space-y-3 relative size-medium">
+                <!-- 빈 화면일 때 친근한 가이드 제공 -->
+                <div id="canvas-empty-state" class="absolute inset-0 flex flex-col items-center justify-center text-slate-400 text-center select-none p-12">
+                    <div class="w-16 h-16 bg-blue-50 border border-blue-100 rounded-3xl flex items-center justify-center mb-4 text-blue-500 shadow-sm">
+                        <i data-lucide="toy-brick" class="w-8 h-8"></i>
+                    </div>
+                    <h4 class="font-extrabold text-slate-700 text-sm">조립판이 비어 있습니다!</h4>
+                    <p class="text-xs text-slate-400 mt-1 max-w-sm leading-relaxed">원하는 카테고리의 블록을 좌측에서 넣어 프로그램을 완성해 보세요. 새롭게 추가된 <strong>[인공지능 & Gemini API]</strong> 블록을 활용하면 똑똑한 LLM 연동 프로그램도 손쉽게 구현할 수 있습니다!</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- [C] 실시간 DB 데이터 뷰어 & 실행 터미널 로그 & Gemini API 가이드 - Flex Order 3 -->
+        <aside id="preview-aside" class="layout-transition w-80 bg-white border-l border-slate-200 flex flex-col shrink-0 overflow-hidden order-3">
+            
+            <!-- 우측 사이드바 상단 탭 스위치 -->
+            <div class="bg-slate-50 border-b border-slate-200 flex shrink-0">
+                <button onclick="switchAsideTab('database')" id="aside-tab-db" class="flex-1 py-3 text-center text-xs font-bold border-b-2 border-blue-600 text-blue-600 transition-all flex items-center justify-center gap-1.5">
+                    <i data-lucide="database" class="w-3.5 h-3.5"></i>
+                    모니터링
+                </button>
+                <button onclick="switchAsideTab('gemini')" id="aside-tab-gemini" class="flex-1 py-3 text-center text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all flex items-center justify-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-blue-500 animate-pulse"></i>
+                    Gemini AI 비서
+                </button>
+            </div>
+
+            <!-- 패널 1: 데이터베이스 및 모니터링 터미널 -->
+            <div id="aside-panel-database" class="flex-1 flex flex-col overflow-hidden">
+                <!-- 상단: 실시간 동기화 상태 및 데이터 뷰 -->
+                <div class="flex-1 flex flex-col border-b border-slate-200 overflow-hidden">
+                    <div class="p-3 border-b border-slate-200 bg-slate-50/30 flex items-center justify-between">
+                        <span class="text-[10px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-1">
+                            <i data-lucide="database" class="w-3.5 h-3.5 text-blue-600"></i>
+                            데이터베이스
+                        </span>
+                        <div class="flex items-center gap-1">
+                            <button onclick="downloadJsonBackup()" class="p-1 hover:bg-slate-100 text-slate-500 rounded transition-all" title="백업 다운로드">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                            </button>
+                            <button onclick="syncDatabasePreview()" class="p-1 hover:bg-slate-100 text-slate-500 rounded transition-all" title="새로고침">
+                                <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- JSON 트리 형태의 DB 실시간 모니터링 영역 -->
+                    <div class="flex-1 p-3 overflow-hidden">
+                        <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3 h-full relative flex flex-col overflow-hidden">
+                            <div class="flex-1 overflow-auto space-y-3">
+                                <pre id="db-json-preview" class="code-font text-[11px] text-slate-700 leading-relaxed font-semibold">데이터 동기화 중...</pre>
+                                
+                                <!-- AI 생성 이미지 결과 갤러리 프리뷰 영역 추가 -->
+                                <div id="image-gallery-container" class="hidden border-t border-slate-200 pt-3">
+                                    <h5 class="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                                        <i data-lucide="image" class="w-3.5 h-3.5"></i> AI 생성 이미지 결과 프리뷰
+                                    </h5>
+                                    <div id="image-gallery-grid" class="grid grid-cols-2 gap-2"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 하단: 블록 컴파일 실행 터미널 로그 -->
+                <div class="h-56 flex flex-col bg-slate-900 overflow-hidden border-t border-slate-800">
+                    <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between shrink-0">
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
+                            콘솔 터미널
+                        </span>
+                        <button onclick="clearConsole()" class="text-[9px] text-slate-500 hover:text-slate-300">
+                            지우기
+                        </button>
+                    </div>
+                    <div id="console-logs" class="flex-1 p-3 overflow-y-auto space-y-1 code-font text-[11px] text-slate-300 select-text">
+                        <p class="text-slate-500">// 블록 실행 결과 로그가 이곳에 출력됩니다.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 패널 2: [Gemini API 사용 방법 교육 & Playground 가이드] -->
+            <div id="aside-panel-gemini" class="flex-1 flex flex-col overflow-hidden hidden bg-slate-50">
+                <div class="p-3 border-b border-slate-200 bg-white flex flex-col gap-1.5 shrink-0">
+                    <h4 class="text-xs font-bold text-slate-800 flex items-center gap-1">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-indigo-600"></i>
+                        Gemini API 플레이그라운드
+                    </h4>
+                    <p class="text-[10px] text-slate-500 leading-relaxed">
+                        Gemini API의 다양한 사용법을 알아보고, 실제 텍스트 생성을 즉석에서 질의해 보세요!
+                    </p>
+                </div>
+
+                <!-- Gemini API 질문 응답 상자 -->
+                <div class="p-3 flex-1 overflow-y-auto space-y-3">
+                    <div class="bg-white border border-slate-200 p-3 rounded-xl shadow-xs">
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">추천 빠른 템플릿</p>
+                        <div class="grid grid-cols-2 gap-1.5 text-[9px]">
+                            <button onclick="requestGeminiGuide('text')" class="py-1 px-2 border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/20 text-slate-700 hover:text-indigo-700 font-bold rounded-lg transition-all text-left truncate">
+                                📝 텍스트 생성 API 코드
+                            </button>
+                            <button onclick="requestGeminiGuide('image')" class="py-1 px-2 border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/20 text-slate-700 hover:text-indigo-700 font-bold rounded-lg transition-all text-left truncate">
+                                🎨 이미지 생성 (Imagen)
+                            </button>
+                            <button onclick="requestGeminiGuide('tts')" class="py-1 px-2 border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/20 text-slate-700 hover:text-indigo-700 font-bold rounded-lg transition-all text-left truncate">
+                                🗣️ TTS 음성합성 가이드
+                            </button>
+                            <button onclick="requestGeminiGuide('live')" class="py-1 px-2 border border-slate-200 hover:border-indigo-500 hover:bg-indigo-50/20 text-slate-700 hover:text-indigo-700 font-bold rounded-lg transition-all text-left truncate">
+                                🎙️ 실시간 Live API 코드
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- AI 채팅 응답 뷰어 -->
+                    <div id="gemini-assistant-response" class="bg-white border border-slate-200 p-3.5 rounded-xl text-[11px] leading-relaxed text-slate-700 min-h-[150px] space-y-3">
+                        <div class="flex items-center gap-1.5 text-indigo-600 font-bold mb-1">
+                            <i data-lucide="help-circle" class="w-4 h-4"></i>
+                            어떤 사용법이 궁금하신가요?
+                        </div>
+                        <p class="text-slate-500">원하는 질문을 아래에 적거나 위의 템플릿 버튼을 클릭하면 세부 JS 활용 코드를 가져옵니다.</p>
+                    </div>
+                </div>
+
+                <!-- 입력 창 영역 -->
+                <div class="p-3 bg-white border-t border-slate-200 shrink-0">
+                    <div class="relative">
+                        <textarea id="gemini-user-prompt" placeholder="Gemini API로 텍스트 생성하는 방법 알려줘" rows="2" class="w-full pl-3 pr-10 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500 transition-all font-medium resize-none"></textarea>
+                        <button onclick="submitGeminiAssistantQuery()" id="btn-gemini-send" class="absolute right-2 bottom-2.5 p-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-all" title="AI에게 질문">
+                            <i data-lucide="send" class="w-3.5 h-3.5"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </aside>
+
+    </div>
+
+    <!-- Core Javascript Code -->
+    <script>
+        let currentDbUrl = "";
+        let currentDbSecret = "";
+        let activeBlocks = []; // Workspace blocks
+        let authSession = null; // { name, provider, isSimulator }
+        
+        // 레이아웃 변경 관련 상태변수
+        let sidebarPosition = "left";  // "left" or "right"
+        let previewPosition = "right"; // "left" or "right"
+        let activeAsideTab = "database"; // "database" or "gemini"
+        
+        // 블록 실시간 검색 쿼리 변수
+        let paletteSearchQuery = "";
+
+        // 로컬 모의 시뮬레이터 저장 공간 키
+        const LOCAL_STORAGE_DB_KEY = "pal_simulated_db_v1";
+
+        // 기본 모의 데이터베이스 구조
+        const DEFAULT_MOCK_DB = {
+            "welcome_message": "PAL Block Canvas에 오신 것을 환영합니다! 🌟",
+            "users": {
+                "user_1": { "name": "김철수", "role": "학생", "point": 100 },
+                "user_2": { "name": "이영희", "role": "학생", "point": 150 }
+            },
+            "system_config": {
+                "active_theme": "light",
+                "max_users": 50,
+                "sandbox_mode": true
+            },
+            "logs": {
+                "system_init": "Success"
+            }
+        };
+
+        const PAL_BLOCK_TEMPLATES = {
+            // 카테고리 0: 인공지능 & Gemini API 연동 (새로운 업그레이드 기능)
+            GEMINI_TEXT_GEN: {
+                category: '인공지능 & Gemini API 연동',
+                type: 'GEMINI_TEXT_GEN',
+                title: 'Gemini 텍스트 생성 (LLM)',
+                icon: 'brain-circuit',
+                color: 'bg-violet-50 hover:bg-violet-100 text-violet-800 border-violet-200',
+                btnColor: 'bg-violet-600',
+                inputs: [
+                    { label: 'AI 역할 지침', key: 'system', type: 'text', placeholder: '친절하고 똑똑한 선생님처럼 답변해줘.', value: '' },
+                    { label: '프롬프트 ({경로} 가능)', key: 'prompt', type: 'text', placeholder: '이름 {users/user_1/name}에 어울리는 응원의 한마디 해줘.', value: '' },
+                    { label: '결과 저장 경로', key: 'path', type: 'text', placeholder: 'ai_output/response', value: '' }
+                ]
+            },
+            GEMINI_IMAGE_GEN: {
+                category: '인공지능 & Gemini API 연동',
+                type: 'GEMINI_IMAGE_GEN',
+                title: 'Imagen 인공지능 이미지 그리기',
+                icon: 'image',
+                color: 'bg-fuchsia-50 hover:bg-fuchsia-100 text-fuchsia-800 border-fuchsia-200',
+                btnColor: 'bg-fuchsia-600',
+                inputs: [
+                    { label: '그림 프롬프트 ({경로} 가능)', key: 'prompt', type: 'text', placeholder: '귀여운 아기 고양이가 {welcome_message}를 읽는 그림', value: '' },
+                    { label: '이미지 종횡비', key: 'property', type: 'select', options: ['1:1', '16:9', '4:3', '9:16'], value: '1:1' },
+                    { label: '결과 저장 경로', key: 'path', type: 'text', placeholder: 'ai_output/image_base64', value: '' }
+                ]
+            },
+            GEMINI_TTS_GEN: {
+                category: '인공지능 & Gemini API 연동',
+                type: 'GEMINI_TTS_GEN',
+                title: 'Gemini 자연스런 음성 낭독 (TTS)',
+                icon: 'volume-2',
+                color: 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border-indigo-200',
+                btnColor: 'bg-indigo-600',
+                inputs: [
+                    { label: '말할 대사 ({경로} 가능)', key: 'prompt', type: 'text', placeholder: '안녕하세요 {users/user_1/name}님!', value: '' },
+                    { label: '목소리 종류', key: 'property', type: 'select', options: ['Zephyr (밝음)', 'Puck (경쾌)', 'Kore (차분)', 'Fenrir (신남)', 'Leda (차분)'], value: 'Zephyr (밝음)' }
+                ]
+            },
+
+            // 카테고리 1: 데이터베이스 쓰기
+            SET: {
+                category: '데이터베이스 쓰기',
+                type: 'SET',
+                title: '데이터 덮어쓰기 (SET)',
+                icon: 'plus-circle',
+                color: 'bg-blue-50 hover:bg-blue-100/70 text-blue-700 border-blue-200',
+                btnColor: 'bg-blue-600',
+                inputs: [
+                    { label: '데이터 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' },
+                    { label: 'Key 이름', key: 'property', type: 'text', placeholder: 'point', value: '' },
+                    { label: '저장할 값', key: 'value', type: 'text', placeholder: '200', value: '' }
+                ]
+            },
+            UPDATE: {
+                category: '데이터베이스 쓰기',
+                type: 'UPDATE',
+                title: '데이터 일부 수정 (UPDATE)',
+                icon: 'edit-3',
+                color: 'bg-indigo-50 hover:bg-indigo-100/70 text-indigo-700 border-indigo-200',
+                btnColor: 'bg-indigo-600',
+                inputs: [
+                    { label: '데이터 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' },
+                    { label: '수정할 Key', key: 'property', type: 'text', placeholder: 'name', value: '' },
+                    { label: '새로운 값', key: 'value', type: 'text', placeholder: '김영희', value: '' }
+                ]
+            },
+            PUSH: {
+                category: '데이터베이스 쓰기',
+                type: 'PUSH',
+                title: '고유 ID로 목록 추가 (PUSH)',
+                icon: 'list-plus',
+                color: 'bg-emerald-50 hover:bg-emerald-100/70 text-emerald-700 border-emerald-200',
+                btnColor: 'bg-emerald-600',
+                inputs: [
+                    { label: '대상 폴더 경로', key: 'path', type: 'text', placeholder: 'logs', value: '' },
+                    { label: '저장할 값(텍스트)', key: 'value', type: 'text', placeholder: '새로운 로그 메세지', value: '' }
+                ]
+            },
+            INCREMENT: {
+                category: '데이터베이스 쓰기',
+                type: 'INCREMENT',
+                title: '숫자 값 직접 1 증가 (+1)',
+                icon: 'arrow-up-right',
+                color: 'bg-teal-50 hover:bg-teal-100/70 text-teal-700 border-teal-200',
+                btnColor: 'bg-teal-600',
+                inputs: [
+                    { label: '데이터 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' },
+                    { label: '대상 속성 Key', key: 'property', type: 'text', placeholder: 'point', value: '' }
+                ]
+            },
+            TIMESTAMP: {
+                category: '데이터베이스 쓰기',
+                type: 'TIMESTAMP',
+                title: '현재 시간 기록하기 (Time)',
+                icon: 'calendar',
+                color: 'bg-sky-50 hover:bg-sky-100/70 text-sky-700 border-sky-200',
+                btnColor: 'bg-sky-600',
+                inputs: [
+                    { label: '기록할 경로', key: 'path', type: 'text', placeholder: 'logs', value: '' },
+                    { label: '속성 Key 이름', key: 'property', type: 'text', placeholder: 'last_updated', value: '' }
+                ]
+            },
+
+            // 카테고리 2: 데이터베이스 읽기 및 조건
+            GET: {
+                category: '데이터베이스 읽기 및 조건',
+                type: 'GET',
+                title: '데이터 값 읽어오기 (GET)',
+                icon: 'file-search',
+                color: 'bg-amber-50 hover:bg-amber-100/70 text-amber-700 border-amber-200',
+                btnColor: 'bg-amber-600',
+                inputs: [
+                    { label: '데이터 경로', key: 'path', type: 'text', placeholder: 'system_config', value: '' },
+                    { label: '속성 Key', key: 'property', type: 'text', placeholder: 'active_theme', value: '' }
+                ]
+            },
+            IF_EQUAL: {
+                category: '데이터베이스 읽기 및 조건',
+                type: 'IF_EQUAL',
+                title: '조건문 (만약 값이 일치하면)',
+                icon: 'git-branch',
+                color: 'bg-orange-50 hover:bg-orange-100/70 text-orange-700 border-orange-200',
+                btnColor: 'bg-orange-600',
+                inputs: [
+                    { label: '비교 경로', key: 'path', type: 'text', placeholder: 'system_config', value: '' },
+                    { label: '비교 속성 Key', key: 'property', type: 'text', placeholder: 'sandbox_mode', value: '' },
+                    { label: '일치 조건값', key: 'value', type: 'text', placeholder: 'true', value: '' },
+                    { label: '만족 시 동작', key: 'action', type: 'select', options: ['로그 출력하기', '데이터 전체 삭제하기'], value: '로그 출력하기' }
+                ]
+            },
+            IF_GREATER: {
+                category: '데이터베이스 읽기 및 조건',
+                type: 'IF_GREATER',
+                title: '조건문 (만약 값보다 크다면)',
+                icon: 'trending-up',
+                color: 'bg-yellow-50 hover:bg-yellow-100/70 text-yellow-700 border-yellow-200',
+                btnColor: 'bg-yellow-600',
+                inputs: [
+                    { label: '대상 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' },
+                    { label: '속성 Key', key: 'property', type: 'text', placeholder: 'point', value: '' },
+                    { label: '기준 수치', key: 'value', type: 'text', placeholder: '100', value: '' }
+                ]
+            },
+            IF_EXISTS: {
+                category: '데이터베이스 읽기 및 조건',
+                type: 'IF_EXISTS',
+                title: '조건문 (만약 데이터가 존재하면)',
+                icon: 'eye',
+                color: 'bg-lime-50 hover:bg-lime-100/70 text-lime-700 border-lime-200',
+                btnColor: 'bg-lime-600',
+                inputs: [
+                    { label: '확인 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' }
+                ]
+            },
+            LOGIC_COMPARE: {
+                category: '데이터베이스 읽기 및 조건',
+                type: 'LOGIC_COMPARE',
+                title: '조건 비교: 두 데이터 값 논리 비교',
+                icon: 'git-compare',
+                color: 'bg-amber-50 hover:bg-amber-100/70 text-amber-850 border-amber-200',
+                btnColor: 'bg-amber-600',
+                inputs: [
+                    { label: '변수 1 경로', key: 'path', type: 'text', placeholder: 'users/user_1/point', value: '' },
+                    { label: '비교 연산자', key: 'property', type: 'select', options: ['>', '<', '==', '!=', '>=', '<='], value: '==' },
+                    { label: '비교 대상 값 2', key: 'value', type: 'text', placeholder: '100', value: '' }
+                ]
+            },
+
+            // 카테고리 3: 데이터베이스 제어
+            DELETE: {
+                category: '데이터베이스 제어',
+                type: 'DELETE',
+                title: '데이터 삭제하기 (DELETE)',
+                icon: 'trash-2',
+                color: 'bg-rose-50 hover:bg-rose-100/70 text-rose-700 border-rose-200',
+                btnColor: 'bg-rose-600',
+                inputs: [
+                    { label: '삭제할 경로', key: 'path', type: 'text', placeholder: 'users/user_2', value: '' },
+                    { label: '특정 속성만 삭제', key: 'property', type: 'text', placeholder: 'role', value: '' }
+                ]
+            },
+            CLEAR_PATH: {
+                category: '데이터베이스 제어',
+                type: 'CLEAR_PATH',
+                title: '특정 경로 초기화 ({} 비우기)',
+                icon: 'folder-sync',
+                color: 'bg-red-50 hover:bg-red-100/70 text-red-700 border-red-200',
+                btnColor: 'bg-red-600',
+                inputs: [
+                    { label: '비울 대상 폴더', key: 'path', type: 'text', placeholder: 'logs', value: '' }
+                ]
+            },
+            COPY_NODE: {
+                category: '데이터베이스 제어',
+                type: 'COPY_NODE',
+                title: '데이터 노드 복사/이동 (Copy)',
+                icon: 'copy',
+                color: 'bg-pink-50 hover:bg-pink-100/70 text-pink-700 border-pink-200',
+                btnColor: 'bg-pink-600',
+                inputs: [
+                    { label: '원본 노드 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' },
+                    { label: '복사해 갈 대상 경로', key: 'property', type: 'text', placeholder: 'users/backup_user', value: '' }
+                ]
+            },
+
+            // 카테고리 4: 연산 및 문자 처리
+            MATH_ADD: {
+                category: '연산 및 문자 처리',
+                type: 'MATH_ADD',
+                title: '수학 연산: 값에 더하기 (+)',
+                icon: 'plus',
+                color: 'bg-cyan-50 hover:bg-cyan-100/70 text-cyan-700 border-cyan-200',
+                btnColor: 'bg-cyan-600',
+                inputs: [
+                    { label: '데이터 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' },
+                    { label: '더할 속성 Key', key: 'property', type: 'text', placeholder: 'point', value: '' },
+                    { label: '더할 수치', key: 'value', type: 'text', placeholder: '50', value: '' }
+                ]
+            },
+            MATH_SUB: {
+                category: '연산 및 문자 처리',
+                type: 'MATH_SUB',
+                title: '수학 연산: 값에서 빼기 (-)',
+                icon: 'minus',
+                color: 'bg-cyan-50 hover:bg-cyan-100/70 text-cyan-700 border-cyan-200',
+                btnColor: 'bg-cyan-600',
+                inputs: [
+                    { label: '데이터 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' },
+                    { label: '뺄 속성 Key', key: 'property', type: 'text', placeholder: 'point', value: '' },
+                    { label: '뺄 수치', key: 'value', type: 'text', placeholder: '30', value: '' }
+                ]
+            },
+            MATH_MUL: {
+                category: '연산 및 문자 처리',
+                type: 'MATH_MUL',
+                title: '수학 연산: 배율 곱하기 (*)',
+                icon: 'percent',
+                color: 'bg-cyan-50 hover:bg-cyan-100/70 text-cyan-700 border-cyan-200',
+                btnColor: 'bg-cyan-600',
+                inputs: [
+                    { label: '데이터 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' },
+                    { label: '곱할 속성 Key', key: 'property', type: 'text', placeholder: 'point', value: '' },
+                    { label: '곱할 수치', key: 'value', type: 'text', placeholder: '2', value: '' }
+                ]
+            },
+            MATH_RANDOM: {
+                category: '연산 및 문자 처리',
+                type: 'MATH_RANDOM',
+                title: '수학 연산: 범위 내 무작위 수 생성(랜덤)',
+                icon: 'shuffle',
+                color: 'bg-cyan-50 hover:bg-cyan-100/70 text-cyan-750 border-cyan-200',
+                btnColor: 'bg-cyan-600',
+                inputs: [
+                    { label: '최소 범위 지정', key: 'property', type: 'text', placeholder: '1', value: '' },
+                    { label: '최대 범위 지정', key: 'value', type: 'text', placeholder: '100', value: '' },
+                    { label: '결과 저장할 경로', key: 'path', type: 'text', placeholder: 'system_config/random_val', value: '' }
+                ]
+            },
+            MATH_ROUND: {
+                category: '연산 및 문자 처리',
+                type: 'MATH_ROUND',
+                title: '수학 연산: 소수 반올림/올림/내림 처리',
+                icon: 'calculator',
+                color: 'bg-cyan-50 hover:bg-cyan-100/70 text-cyan-750 border-cyan-200',
+                btnColor: 'bg-cyan-600',
+                inputs: [
+                    { label: '대상 소수 경로', key: 'path', type: 'text', placeholder: 'users/user_1/point', value: '' },
+                    { label: '처리 종류', key: 'property', type: 'select', options: ['반올림 (Round)', '올림 (Ceil)', '내림 (Floor)'], value: '반올림 (Round)' }
+                ]
+            },
+            TEXT_CONCAT: {
+                category: '연산 및 문자 처리',
+                type: 'TEXT_CONCAT',
+                title: '텍스트 결합하기 (Concat)',
+                icon: 'case-sensitive',
+                color: 'bg-sky-50 hover:bg-sky-100/70 text-sky-700 border-sky-200',
+                btnColor: 'bg-sky-600',
+                inputs: [
+                    { label: '데이터 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' },
+                    { label: '대상 속성 Key', key: 'property', type: 'text', placeholder: 'name', value: '' },
+                    { label: '뒤에 붙일 텍스트', key: 'value', type: 'text', placeholder: ' (우수학생)', value: '' }
+                ]
+            },
+            TEXT_REPLACE: {
+                category: '연산 및 문자 처리',
+                type: 'TEXT_REPLACE',
+                title: '문자열 치환하기 (Replace)',
+                icon: 'replace',
+                color: 'bg-violet-50 hover:bg-violet-100/70 text-violet-700 border-violet-200',
+                btnColor: 'bg-violet-600',
+                inputs: [
+                    { label: '데이터 경로', key: 'path', type: 'text', placeholder: 'welcome_message', value: '' },
+                    { label: '바꿀 단어', key: 'property', type: 'text', placeholder: 'PAL', value: '' },
+                    { label: '새 단어', key: 'value', type: 'text', placeholder: '패밀리', value: '' }
+                ]
+            },
+
+            // 카테고리 5: 배열 및 JSON 조작
+            ARRAY_PUSH: {
+                category: '배열 및 JSON 조작',
+                type: 'ARRAY_PUSH',
+                title: '배열(Array) 뒤에 새 데이터 추가',
+                icon: 'arrow-down-to-dot',
+                color: 'bg-fuchsia-50 hover:bg-fuchsia-100/70 text-fuchsia-700 border-fuchsia-200',
+                btnColor: 'bg-fuchsia-600',
+                inputs: [
+                    { label: '배열 경로', key: 'path', type: 'text', placeholder: 'users/user_1/points_history', value: '' },
+                    { label: '추가할 원소값', key: 'value', type: 'text', placeholder: '100', value: '' }
+                ]
+            },
+            ARRAY_POP: {
+                category: '배열 및 JSON 조작',
+                type: 'ARRAY_POP',
+                title: '배열(Array) 마지막 원소 꺼내기',
+                icon: 'log-out',
+                color: 'bg-rose-50 hover:bg-rose-100/70 text-rose-700 border-rose-200',
+                btnColor: 'bg-rose-600',
+                inputs: [
+                    { label: '배열 경로', key: 'path', type: 'text', placeholder: 'users/user_1/points_history', value: '' }
+                ]
+            },
+
+            // 카테고리 6: 파일 및 웹 데이터 연동
+            FILE_EXPORT: {
+                category: '파일 및 웹 데이터 연동',
+                type: 'FILE_EXPORT',
+                title: '로컬 특정 데이터를 다운로드 (.json)',
+                icon: 'file-down',
+                color: 'bg-emerald-50 hover:bg-emerald-100/70 text-emerald-850 border-emerald-200',
+                btnColor: 'bg-emerald-600',
+                inputs: [
+                    { label: '내보낼 경로', key: 'path', type: 'text', placeholder: 'users/user_1', value: '' },
+                    { label: '다운로드 파일명', key: 'value', type: 'text', placeholder: 'user1_backup.json', value: '' }
+                ]
+            },
+            WEB_API_GET: {
+                category: '파일 및 웹 데이터 연동',
+                type: 'WEB_API_GET',
+                title: '외부 실시간 웹 API 호출 저장 (GET)',
+                icon: 'globe',
+                color: 'bg-emerald-50 hover:bg-emerald-100/70 text-emerald-850 border-emerald-200',
+                btnColor: 'bg-emerald-600',
+                inputs: [
+                    { label: '웹 API 주소 (URL)', key: 'value', type: 'text', placeholder: 'https://api.ipify.org?format=json', value: '' },
+                    { label: '저장할 DB 경로', key: 'path', type: 'text', placeholder: 'system_config/external_ip', value: '' }
+                ]
+            },
+
+            // 카테고리 7: 유틸리티 및 알림
+            CONSOLE_LOG: {
+                category: '유틸리티 및 알림',
+                type: 'CONSOLE_LOG',
+                title: '출력창에 로그 기록하기',
+                icon: 'terminal',
+                color: 'bg-slate-100 hover:bg-slate-200/80 text-slate-800 border-slate-300',
+                btnColor: 'bg-slate-800',
+                inputs: [
+                    { label: '로그 메세지', key: 'value', type: 'text', placeholder: '성공적으로 블록을 실행 중입니다.', value: '' }
+                ]
+            },
+            PLAY_BUZZER: {
+                category: '유틸리티 및 알림',
+                type: 'PLAY_BUZZER',
+                title: '알림 효과음 재생하기 (Sound)',
+                icon: 'volume-2',
+                color: 'bg-violet-50 hover:bg-violet-100/70 text-violet-700 border-violet-200',
+                btnColor: 'bg-violet-600',
+                inputs: [
+                    { label: '소리 높낮이 (Pitch)', key: 'value', type: 'select', options: ['높음 (High)', '중간 (Medium)', '낮음 (Low)'], value: '중간 (Medium)' }
+                ]
+            },
+            SPEECH_SAY: {
+                category: '유틸리티 및 알림',
+                type: 'SPEECH_SAY',
+                title: '컴퓨터가 목소리로 말하기 (Speech)',
+                icon: 'mic',
+                color: 'bg-blue-50 hover:bg-blue-100/70 text-blue-700 border-blue-200',
+                btnColor: 'bg-blue-600',
+                inputs: [
+                    { label: '읽어줄 한국어 대사', key: 'value', type: 'text', placeholder: '블록 프로그램을 성공적으로 동작했습니다.', value: '' }
+                ]
+            },
+            VIRTUAL_ALERT: {
+                category: '유틸리티 및 알림',
+                type: 'VIRTUAL_ALERT',
+                title: '화면에 이쁜 알림창 띄우기 (SweetAlert2)',
+                icon: 'info',
+                color: 'bg-slate-100 hover:bg-slate-200/80 text-slate-800 border-slate-300',
+                btnColor: 'bg-slate-800',
+                inputs: [
+                    { label: '알림 타이틀', key: 'property', type: 'text', placeholder: '시스템 동작 완료!', value: '' },
+                    { label: '알림 세부 메시지', key: 'value', type: 'text', placeholder: '데이터가 안전하게 저장되었습니다.', value: '' }
+                ]
+            },
+            BROWSER_COPY: {
+                category: '유틸리티 및 알림',
+                type: 'BROWSER_COPY',
+                title: '특정 텍스트 클립보드에 바로 복사',
+                icon: 'copy',
+                color: 'bg-indigo-50 hover:bg-indigo-100/70 text-indigo-700 border-indigo-200',
+                btnColor: 'bg-indigo-600',
+                inputs: [
+                    { label: '복사할 타겟 경로', key: 'path', type: 'text', placeholder: 'welcome_message', value: '' }
+                ]
+            },
+            DELAY_WAIT: {
+                category: '유틸리티 및 알림',
+                type: 'DELAY_WAIT',
+                title: '실행 흐름 지정 시간 지연 (Delay)',
+                icon: 'hourglass',
+                color: 'bg-indigo-50 hover:bg-indigo-100/70 text-indigo-700 border-indigo-200',
+                btnColor: 'bg-indigo-600',
+                inputs: [
+                    { label: '지연 대기할 초(Sec)', key: 'value', type: 'text', placeholder: '2', value: '' }
+                ]
+            }
+        };
+
+        // {경로} 포맷을 찾아 실제 데이터베이스 내부의 값을 실시간으로 읽어와 치환해 주는 유틸리티
+        async function parseDynamicPrompt(promptText) {
+            if (!promptText) return "";
+            const regex = /\{([^}]+)\}/g;
+            let parsed = promptText;
+            let match;
+            while ((match = regex.exec(promptText)) !== null) {
+                const path = match[1];
+                try {
+                    const val = await apiGet(path);
+                    const valStr = val !== null ? (typeof val === 'object' ? JSON.stringify(val) : String(val)) : "";
+                    parsed = parsed.replace(`{${path}}`, valStr);
+                } catch (e) {
+                    parsed = parsed.replace(`{${path}}`, `[Error: ${path}]`);
+                }
+            }
+            return parsed;
+        }
+
+        // Base64를 ArrayBuffer로 바꾸는 헬퍼
+        function decodeBase64ToArrayBuffer(base64) {
+            const binaryString = atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        }
+
+        // PCM 16bit을 WAV 포맷 블롭 파일로 변환
+        function pcmToWav(samples, sampleRate) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+
+            for (let i = 0; i < samples.length; i++) {
+                view.setInt16(44 + i * 2, samples[i], true);
+            }
+
+            return new Blob([view], { type: 'audio/wav' });
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        function getLocalDbObject() {
+            let data = localStorage.getItem(LOCAL_STORAGE_DB_KEY);
+            if (!data) {
+                localStorage.setItem(LOCAL_STORAGE_DB_KEY, JSON.stringify(DEFAULT_MOCK_DB));
+                return DEFAULT_MOCK_DB;
+            }
+            try {
+                return JSON.parse(data);
+            } catch (e) {
+                return DEFAULT_MOCK_DB;
+            }
+        }
+
+        function saveLocalDbObject(obj) {
+            localStorage.setItem(LOCAL_STORAGE_DB_KEY, JSON.stringify(obj));
+        }
+
+        function getValueByPath(obj, path) {
+            const parts = path.split('/').filter(Boolean);
+            let current = obj;
+            for (let part of parts) {
+                if (current === null || typeof current !== 'object') return null;
+                current = current[part];
+            }
+            return current;
+        }
+
+        function setValueByPath(obj, path, value) {
+            const parts = path.split('/').filter(Boolean);
+            if (parts.length === 0) return value;
+            
+            let current = obj;
+            for (let i = 0; i < parts.length - 1; i++) {
+                let part = parts[i];
+                if (!(part in current) || typeof current[part] !== 'object' || current[part] === null) {
+                    current[part] = {};
+                }
+                current = current[part];
+            }
+            const lastPart = parts[parts.length - 1];
+            current[lastPart] = value;
+            return obj;
+        }
+
+        function deleteValueByPath(obj, path) {
+            const parts = path.split('/').filter(Boolean);
+            if (parts.length === 0) return {};
+            
+            let current = obj;
+            for (let i = 0; i < parts.length - 1; i++) {
+                let part = parts[i];
+                if (!(part in current) || typeof current[part] !== 'object' || current[part] === null) {
+                    return obj;
+                }
+                current = current[part];
+            }
+            const lastPart = parts[parts.length - 1];
+            if (current && typeof current === 'object') {
+                delete current[lastPart];
+            }
+            return obj;
+        }
+
+        function changeBlockSize(size) {
+            const canvas = document.getElementById('workspace-canvas');
+            canvas.classList.remove('size-small', 'size-medium', 'size-large');
+            canvas.classList.add(`size-${size}`);
+
+            const sizes = ['small', 'medium', 'large'];
+            sizes.forEach(s => {
+                const btn = document.getElementById(`btn-size-${s}`);
+                if (s === size) {
+                    btn.className = "px-2 py-0.5 bg-white text-blue-600 rounded font-bold shadow-xs transition-all";
+                } else {
+                    btn.className = "px-2 py-0.5 hover:bg-white/80 text-slate-600 rounded font-semibold transition-all";
+                }
+            });
+            showToast("스케일 변경", `조립판 크기가 ${size === 'small' ? '작게' : size === 'large' ? '크게' : '보통'} 상태로 조절되었습니다.`, "info");
+        }
+
+        function exportBlocksToJson() {
+            if (activeBlocks.length === 0) {
+                showToast("백업 실패", "내보낼 조립 블록이 조립판에 없습니다.", "warning");
+                return;
+            }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(activeBlocks, null, 4));
+            const a = document.createElement('a');
+            a.setAttribute("href", dataStr);
+            a.setAttribute("download", `pal_blocks_backup_${new Date().toISOString().slice(0, 10)}.json`);
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            showToast("백업 내보내기 성공", "현재 조립판의 모든 블록 설정이 컴퓨터로 백업되었습니다.", "success");
+        }
+
+        function importBlocksFromJson() {
+            Swal.fire({
+                title: '블록 불러오기 (Import)',
+                html: `
+                    <p class="text-xs text-slate-500 mb-3 text-left">이전에 내보냈던 블록 파일(.json)을 가져와 조립판을 즉시 복원합니다.</p>
+                    <input type="file" id="swal-block-file-input" accept=".json" class="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                `,
+                showCancelButton: true,
+                confirmButtonText: '파일 파싱 및 데이터 반영',
+                cancelButtonText: '취소',
+                confirmButtonColor: '#2563eb',
+                preConfirm: () => {
+                    const fileInput = document.getElementById('swal-block-file-input');
+                    if (!fileInput.files.length) {
+                        Swal.showValidationMessage('복원할 .json 파일을 선택해 주세요!');
+                    }
+                    return fileInput.files[0];
+                }
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    const file = result.value;
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const importedBlocks = JSON.parse(e.target.result);
+                            if (!Array.isArray(importedBlocks)) {
+                                throw new Error("올바른 블록 조립 JSON 형식(Array)이 아닙니다.");
+                            }
+                            
+                            activeBlocks = importedBlocks;
+                            renderWorkspaceCanvas();
+                            
+                            showToast("불러오기 완료", "블록이 완벽하게 복원되었습니다.", "success");
+                            appendConsoleLog("system", `✔ 외부 JSON 블록 백업(${activeBlocks.length}개) 파일 로드 완료`);
+                        } catch (err) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: '가져오기 실패',
+                                text: '유효한 블록 설정 파일이 아닙니다. 파싱 에러 발생.'
+                            });
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            });
+        }
+
+        function toggleSidebarLayout() {
+            const aside = document.getElementById('palette-aside');
+            if (sidebarPosition === "left") {
+                sidebarPosition = "right";
+                aside.classList.remove('order-1');
+                aside.classList.add('order-3', 'border-l', 'border-r-0');
+                aside.classList.remove('border-r');
+                showToast("레이아웃 변경", "블록 보관함이 프로그램 오른쪽으로 이동했습니다.", "info");
+            } else {
+                sidebarPosition = "left";
+                aside.classList.remove('order-3');
+                aside.classList.add('order-1', 'border-r', 'border-l-0');
+                aside.classList.remove('border-l');
+                showToast("레이아웃 변경", "블록 보관함이 프로그램 왼쪽으로 이동했습니다.", "info");
+            }
+        }
+
+        function togglePreviewLayout() {
+            const aside = document.getElementById('preview-aside');
+            if (previewPosition === "right") {
+                previewPosition = "left";
+                aside.classList.remove('order-3');
+                aside.classList.add('order-1', 'border-r', 'border-l-0');
+                aside.classList.remove('border-l');
+                showToast("레이아웃 변경", "가이드 디버거가 왼쪽으로 이동했습니다.", "info");
+            } else {
+                previewPosition = "right";
+                aside.classList.remove('order-1');
+                aside.classList.add('order-3', 'border-l', 'border-r-0');
+                aside.classList.remove('border-r');
+                showToast("레이아웃 변경", "가이드 디버거가 오른쪽으로 이동했습니다.", "info");
+            }
+        }
+
+        function filterPalette() {
+            paletteSearchQuery = document.getElementById('palette-search').value.toLowerCase().trim();
+            renderBlockPalette();
+        }
+
+        function switchAsideTab(tabId) {
+            activeAsideTab = tabId;
+            const tabDbBtn = document.getElementById('aside-tab-db');
+            const tabGeminiBtn = document.getElementById('aside-tab-gemini');
+            const panelDb = document.getElementById('aside-panel-database');
+            const panelGemini = document.getElementById('aside-panel-gemini');
+
+            if (tabId === 'database') {
+                tabDbBtn.className = "flex-1 py-3 text-center text-xs font-bold border-b-2 border-blue-600 text-blue-600 transition-all flex items-center justify-center gap-1.5";
+                tabGeminiBtn.className = "flex-1 py-3 text-center text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all flex items-center justify-center gap-1.5";
+                panelDb.classList.remove('hidden');
+                panelGemini.classList.add('hidden');
+            } else {
+                tabDbBtn.className = "flex-1 py-3 text-center text-xs font-bold border-b-2 border-transparent text-slate-500 hover:text-slate-800 transition-all flex items-center justify-center gap-1.5";
+                tabGeminiBtn.className = "flex-1 py-3 text-center text-xs font-bold border-b-2 border-blue-600 text-blue-600 transition-all flex items-center justify-center gap-1.5";
+                panelDb.classList.add('hidden');
+                panelGemini.classList.remove('hidden');
+            }
+        }
+
+        async function submitGeminiAssistantQuery() {
+            const promptEl = document.getElementById('gemini-user-prompt');
+            const queryText = promptEl.value.trim();
+            if (!queryText) return;
+
+            const responseViewer = document.getElementById('gemini-assistant-response');
+            responseViewer.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-6 text-indigo-600 font-semibold text-xs">
+                    <div class="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mb-2"></div>
+                    Gemini API 가이드 분석 및 코드 생성 중...
+                </div>
+            `;
+            
+            promptEl.value = "";
+
+            try {
+                const resultText = await callGeminiAPI(queryText);
+                responseViewer.innerHTML = formatMarkdownToHtml(resultText);
+            } catch (err) {
+                responseViewer.innerHTML = `
+                    <div class="text-rose-500 p-2 font-bold text-xs">
+                        ⚠️ 오류 발생: ${err.message}<br>
+                        인터넷 상태 및 API 요청 환경을 점검하세요.
+                    </div>
+                `;
+            }
+        }
+
+        function requestGeminiGuide(type) {
+            switchAsideTab('gemini');
+            let query = "";
+            if (type === 'text') {
+                query = "가장 쉽고 표준적인 Gemini API 텍스트 생성 JS 호출 코드 짜주세요. key는 빈 문자열로 처리해줘.";
+            } else if (type === 'image') {
+                query = "imagen-4.0-generate-001 모델로 인공지능 이미지 생성하는 JS fetch API 사용법 소스코드 알려주세요.";
+            } else if (type === 'tts') {
+                query = "gemini-2.5-flash-preview-tts 모델을 사용해 텍스트를 음성합성(TTS) PCM 바이너리로 다운로드해서 웹브라우저 오디오 객체로 재생하는 완벽한 JS 코드 가이드 알려줘.";
+            } else if (type === 'live') {
+                query = "gemini-3.1-flash-live-preview 모델로 AudioWorklet 라이브 실시간 양방향 오디오 대화 세션을 여는 JS 라이브러리 초기화 소스코드 알려주세요.";
+            }
+            document.getElementById('gemini-user-prompt').value = query;
+            submitGeminiAssistantQuery();
+        }
+
+        async function callGeminiAPI(userQuery) {
+            const apiKey = ""; // Canvas 런타임에서 자동 주입됨
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+            const systemPrompt = `
+                당신은 파이어베이스 및 구글 Gemini API 연동 최고 전문가입니다.
+                사용자에게 Javascript 및 Web 환경에서 바로 복사하여 사용할 수 있는 완벽한 최신 코드를 한글로 제공해 주세요.
+                다음 규칙을 철저히 따라 소스코드를 서술하세요:
+                1. API Key 변수는 반드시 \`const apiKey = "";\` 로 비워두어 런타임 보안 구조를 따릅니다.
+                2. 텍스트는 \`gemini-3-flash-preview\` 모델을, 이미지는 \`imagen-4.0-generate-001\`을 기준으로 합니다.
+                3. 마크다운의 \`\`\`javascript ... \`\`\` 형태로 코드를 감싸주어 유저가 복사하기 쉽게 하세요.
+            `;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: {
+                    parts: [{ text: systemPrompt }]
+                }
+            };
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                throw new Error(`API 응답 실패 (상태: ${response.status})`);
+            }
+
+            const result = await response.json();
+            return result.candidates?.[0]?.content?.parts?.[0]?.text || "답변 분석 실패";
+        }
+
+        function formatMarkdownToHtml(mdText) {
+            let html = mdText
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+
+            const codeBlockRegex = /```(?:javascript|js)?([\s\S]*?)```/g;
+            html = html.replace(codeBlockRegex, (match, code) => {
+                const escapedCode = code.trim();
+                const codeId = "code_" + Math.random().toString(36).substring(2, 9);
+                return `
+                    <div class="relative bg-slate-900 text-slate-100 rounded-xl p-3 my-2 font-mono text-[10px]">
+                        <button onclick="copyToClipboardFromAI('${codeId}')" class="absolute right-2 top-2 px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded hover:text-white transition-all">복사</button>
+                        <textarea id="${codeId}" class="hidden">${escapedCode}</textarea>
+                        <pre class="overflow-x-auto whitespace-pre-wrap leading-relaxed">${escapedCode}</pre>
+                    </div>
+                `;
+            });
+
+            html = html.replace(/`([^`]+)`/g, '<code class="bg-indigo-50 text-indigo-700 px-1 py-0.5 rounded font-mono font-bold">$1</code>');
+            html = html.replace(/###\s+(.*)/g, '<h5 class="text-xs font-black text-slate-800 mt-3 mb-1.5 flex items-center gap-1"><span class="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span> $1</h5>');
+            html = html.replace(/\n/g, '<br>');
+
+            return `<div class="space-y-1 font-medium text-slate-700">${html}</div>`;
+        }
+
+        function copyToClipboardFromAI(id) {
+            const textVal = document.getElementById(id).value;
+            const tempInput = document.createElement("textarea");
+            tempInput.value = textVal;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+            showToast("복사 성공", "코드 템플릿이 성공적으로 카피되었습니다.", "success");
+        }
+
+        function handleSocialSignIn(provider) {
+            let email = "";
+            let name = "";
+            
+            if (provider === 'Google') {
+                email = "user_google@gmail.com";
+                name = "구글 사용자님";
+            } else {
+                email = "user_whale@gne.go.kr";
+                name = "웨일스페이스 교사님";
+            }
+
+            Swal.fire({
+                title: `${provider} 간편 로그인 연동`,
+                text: `${email} 계정으로 PAL 세션을 연결합니다.`,
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonColor: '#2563eb',
+                confirmButtonText: '네, 연결합니다',
+                cancelButtonText: '취소'
+            }).then((res) => {
+                if (res.isConfirmed) {
+                    authSession = {
+                        name: name,
+                        provider: provider,
+                        isSimulator: false
+                    };
+                    loadPreset('demo-sandbox');
+                    updateUserProfileUI();
+                }
+            });
+        }
+
+        async function handleManualConnect(event) {
+            event.preventDefault();
+            const address = document.getElementById('db-address').value.trim();
+            const token = document.getElementById('db-token').value.trim();
+
+            await tryConnectDatabase(address, token, false);
+        }
+
+        async function tryConnectDatabase(url, secret, isPreset = false) {
+            let cleanUrl = url.trim();
+            if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+                cleanUrl = 'https://' + cleanUrl;
+            }
+            if (!cleanUrl.endsWith('/')) {
+                cleanUrl += '/';
+            }
+
+            Swal.fire({
+                title: '실시간 DB 보안 접속 중',
+                text: `${cleanUrl} 연결 권한 획득 중...`,
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            try {
+                const checkUrl = `${cleanUrl}.json` + (secret ? `?auth=${secret}` : '');
+                
+                const response = await fetch(checkUrl).catch(err => {
+                    return { ok: false, status: 'NetworkError', statusText: err.message };
+                });
+                
+                if (!response.ok) {
+                    handleConnectionFailure(cleanUrl, response.status || '404');
+                    return;
+                }
+
+                currentDbUrl = cleanUrl;
+                currentDbSecret = secret;
+
+                if (!authSession) {
+                    authSession = {
+                        name: "수동 개발자님",
+                        provider: "Custom RTDB",
+                        isSimulator: false
+                    };
+                }
+
+                updateUserProfileUI();
+                document.getElementById('auth-gate').classList.add('opacity-0', 'pointer-events-none');
+                
+                syncDatabasePreview();
+                appendConsoleLog("auth", `✔ 원격 실시간 데이터베이스 연결 수립 완료: ${cleanUrl}`);
+
+                Swal.fire({
+                    icon: 'success',
+                    title: '연결 성공!',
+                    text: '파이어베이스 데이터베이스가 완벽하게 바인딩되었습니다.',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
+            } catch (error) {
+                handleConnectionFailure(cleanUrl, error.message);
+            }
+        }
+
+        function handleConnectionFailure(url, errorMsg) {
+            appendConsoleLog("error", `⚠ DB 연결 실패 (상태: ${errorMsg}) - 대상 주소: ${url}`);
+            
+            Swal.fire({
+                icon: 'warning',
+                title: '실시간 DB 연결 불가',
+                html: `<div class="text-left text-xs space-y-2">
+                    <p>연결하려는 파이어베이스 주소(<span class="font-mono text-blue-600">${url}</span>)에 통신할 수 없습니다.</p>
+                    <p class="text-slate-400 font-bold mt-1">🌟 추천 해결책:</p>
+                    <p>인터넷이나 서버 없이 오프라인에서 안전하게 작동하는 <strong>로컬 시뮬레이터</strong> 모드로 즉시 기동하여 기능을 확인해보세요!</p>
+                </div>`,
+                showCancelButton: true,
+                confirmButtonText: '로컬 시뮬레이터 즉시 기동',
+                cancelButtonText: '직접 주소 다시 입력',
+                confirmButtonColor: '#2563eb'
+            }).then((choice) => {
+                if (choice.isConfirmed) {
+                    startLocalSimulator();
+                }
+            });
+        }
+
+        function startLocalSimulator() {
+            authSession = {
+                name: "로컬 게스트님",
+                provider: "Local Sandbox",
+                isSimulator: true
+            };
+
+            currentDbUrl = "local://sandbox/";
+            currentDbSecret = "";
+
+            updateUserProfileUI();
+            document.getElementById('auth-gate').classList.add('opacity-0', 'pointer-events-none');
+            syncDatabasePreview();
+            
+            appendConsoleLog("auth", "🌟 로컬 가상 시뮬레이터 데이터베이스 연결 완료!");
+            appendConsoleLog("system", "모든 데이터 처리는 브라우저 로컬 저장소 내부에서 완전히 처리됩니다.");
+            
+            showToast('연결 성공', '로컬 가상 저장소 환경에 진입했습니다.', 'success');
+        }
+
+        function loadPreset(presetType) {
+            let targetUrl = "";
+            if (presetType === 'pal-coop') {
+                targetUrl = "https://pal-cooperation-default-rtdb.asia-southeast1.firebasedatabase.app/";
+            } else {
+                targetUrl = "https://pal-demo-sandbox-default-rtdb.firebaseio.com/";
+            }
+            document.getElementById('db-address').value = targetUrl;
+            
+            if (authSession) {
+                tryConnectDatabase(targetUrl, "", true);
+            } else {
+                showToast('주소 기입', '프리셋 연결 주소가 폼에 세팅되었습니다.', 'info');
+            }
+        }
+
+        function updateUserProfileUI() {
+            if (!authSession) return;
+            document.getElementById('user-name').innerText = authSession.name;
+            document.getElementById('user-auth-badge').innerText = authSession.provider;
+            
+            const avatar = document.getElementById('user-avatar');
+            avatar.innerText = authSession.name.substring(0, 1);
+            if (authSession.provider === 'Google') {
+                avatar.className = "w-6.5 h-6.5 rounded-xl bg-red-500 text-white font-extrabold flex items-center justify-center text-xs shadow-sm";
+            } else if (authSession.provider === 'Whale') {
+                avatar.className = "w-6.5 h-6.5 rounded-xl bg-emerald-500 text-white font-extrabold flex items-center justify-center text-xs shadow-sm";
+            } else {
+                avatar.className = "w-6.5 h-6.5 rounded-xl bg-blue-600 text-white font-extrabold flex items-center justify-center text-xs shadow-sm";
+            }
+        }
+
+        function handleSignOut() {
+            Swal.fire({
+                title: '연결을 해제하시겠습니까?',
+                text: '현재 조립된 블록 및 데이터베이스 연결 상태가 비활성화됩니다.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#e11d48',
+                confirmButtonText: '네, 해제합니다',
+                cancelButtonText: '취소'
+            }).then((res) => {
+                if (res.isConfirmed) {
+                    authSession = null;
+                    currentDbUrl = "";
+                    currentDbSecret = "";
+                    activeBlocks = [];
+                    renderWorkspaceCanvas();
+                    document.getElementById('auth-gate').classList.remove('opacity-0', 'pointer-events-none');
+                }
+            });
+        }
+
+        async function apiGet(path) {
+            if (currentDbUrl.startsWith("local://")) {
+                const dbObj = getLocalDbObject();
+                return getValueByPath(dbObj, path);
+            }
+
+            const formatted = formatPath(path);
+            const targetUrl = `${currentDbUrl}${formatted}.json` + (currentDbSecret ? `?auth=${currentDbSecret}` : '');
+            
+            const res = await fetch(targetUrl);
+            if (!res.ok) throw new Error(`GET 에러: ${res.status}`);
+            return await res.json();
+        }
+
+        async function apiPut(path, value) {
+            // Base64 긴 이미지의 경우 출력을 조금 요약해서 나타냄
+            const displayVal = (typeof value === 'string' && value.startsWith('data:image')) ? 'Base64 이미지 데이터' : (typeof value === 'object' ? JSON.stringify(value) : value);
+            appendConsoleLog("system", `[DB 요청] PUT -> 경로: /${path} | 값: ${displayVal}`);
+
+            if (currentDbUrl.startsWith("local://")) {
+                let dbObj = getLocalDbObject();
+                dbObj = setValueByPath(dbObj, path, value);
+                saveLocalDbObject(dbObj);
+                syncDatabasePreview();
+                return value;
+            }
+
+            const formatted = formatPath(path);
+            const targetUrl = `${currentDbUrl}${formatted}.json` + (currentDbSecret ? `?auth=${currentDbSecret}` : '');
+            
+            const res = await fetch(targetUrl, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(value)
+            });
+            if (!res.ok) throw new Error(`PUT 에러: ${res.status}`);
+            syncDatabasePreview();
+            return await res.json();
+        }
+
+        async function apiPush(path, value) {
+            appendConsoleLog("system", `[DB 요청] PUSH -> 경로: /${path} | 값: ${value}`);
+
+            if (currentDbUrl.startsWith("local://")) {
+                const randomId = "push-id-" + Math.random().toString(36).substring(2, 8);
+                let dbObj = getLocalDbObject();
+                
+                let currentList = getValueByPath(dbObj, path);
+                if (currentList === null || typeof currentList !== 'object') {
+                    currentList = {};
+                }
+                currentList[randomId] = value;
+                
+                dbObj = setValueByPath(dbObj, path, currentList);
+                saveLocalDbObject(dbObj);
+                syncDatabasePreview();
+                return randomId;
+            }
+
+            const formatted = formatPath(path);
+            const targetUrl = `${currentDbUrl}${formatted}.json` + (currentDbSecret ? `?auth=${currentDbSecret}` : '');
+            
+            const res = await fetch(targetUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(value)
+            });
+            if (!res.ok) throw new Error(`PUSH 에러: ${res.status}`);
+            const data = await res.json();
+            syncDatabasePreview();
+            return data.name;
+        }
+
+        async function apiDelete(path) {
+            appendConsoleLog("system", `[DB 요청] DELETE -> 경로: /${path}`);
+
+            if (currentDbUrl.startsWith("local://")) {
+                let dbObj = getLocalDbObject();
+                dbObj = deleteValueByPath(dbObj, path);
+                saveLocalDbObject(dbObj);
+                syncDatabasePreview();
+                return true;
+            }
+
+            const formatted = formatPath(path);
+            const targetUrl = `${currentDbUrl}${formatted}.json` + (currentDbSecret ? `?auth=${currentDbSecret}` : '');
+            
+            const res = await fetch(targetUrl, { method: 'DELETE' });
+            if (!res.ok) throw new Error(`DELETE 에러: ${res.status}`);
+            syncDatabasePreview();
+            return true;
+        }
+
+        function formatPath(path) {
+            let p = path.trim();
+            if (p.startsWith("/")) p = p.substring(1);
+            if (p.endsWith("/")) p = p.substring(0, p.length - 1);
+            return p;
+        }
+
+        async function syncDatabasePreview() {
+            const preview = document.getElementById('db-json-preview');
+            const syncBadge = document.getElementById('sync-badge');
+            const dbUrlLabel = document.getElementById('active-db-url');
+
+            dbUrlLabel.innerText = currentDbUrl;
+
+            let fullDbData = null;
+
+            if (currentDbUrl.startsWith("local://")) {
+                syncBadge.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-100";
+                syncBadge.innerHTML = `<span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> 로컬 시뮬레이터`;
+                
+                fullDbData = getLocalDbObject();
+                preview.innerText = JSON.stringify(fullDbData, null, 4);
+            } else {
+                syncBadge.className = "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600 border border-blue-100";
+                syncBadge.innerHTML = `<span class="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></span> 온라인 연동 중`;
+
+                try {
+                    fullDbData = await apiGet("/");
+                    if (fullDbData === null) {
+                        preview.innerText = "// 데이터베이스가 완전히 비어있습니다.";
+                    } else {
+                        preview.innerText = JSON.stringify(fullDbData, null, 4);
+                    }
+                } catch (err) {
+                    preview.innerText = `// 데이터 로드 실패: ${err.message}`;
+                }
+            }
+
+            // [AI 이미지 갤러리 프리뷰 실시간 스캔 기능]
+            const imagesFound = [];
+            function scanForImages(obj, path = "") {
+                if (!obj) return;
+                if (typeof obj === 'string') {
+                    if (obj.startsWith('data:image/') || (obj.startsWith('http') && (obj.match(/\.(jpeg|jpg|gif|png|webp)/i) || obj.includes('placehold.co')))) {
+                        imagesFound.push({ path, url: obj });
+                    }
+                } else if (typeof obj === 'object') {
+                    Object.entries(obj).forEach(([key, val]) => {
+                        scanForImages(val, path ? `${path}/${key}` : key);
+                    });
+                }
+            }
+            if (fullDbData) {
+                scanForImages(fullDbData);
+            }
+
+            const gallery = document.getElementById('image-gallery-container');
+            const grid = document.getElementById('image-gallery-grid');
+            if (imagesFound.length > 0) {
+                gallery.classList.remove('hidden');
+                grid.innerHTML = "";
+                imagesFound.forEach(img => {
+                    const card = document.createElement('div');
+                    card.className = "bg-white border border-slate-200 rounded-xl p-1 shadow-xs flex flex-col";
+                    card.innerHTML = `
+                        <img src="${img.url}" class="w-full h-24 object-cover rounded-lg" onerror="this.src='https://placehold.co/150?text=Image+Load+Error'" />
+                        <span class="text-[9px] text-slate-500 font-mono mt-1 px-1 truncate" title="${img.path}">${img.path}</span>
+                    `;
+                    grid.appendChild(card);
+                });
+            } else {
+                gallery.classList.add('hidden');
+            }
+        }
+
+        function renderBlockPalette() {
+            const palette = document.getElementById('palette-container');
+            palette.innerHTML = "";
+
+            const categoriesSet = new Set();
+            Object.values(PAL_BLOCK_TEMPLATES).forEach(t => categoriesSet.add(t.category));
+
+            let displayedCount = 0;
+
+            categoriesSet.forEach(catName => {
+                const filteredInCat = Object.entries(PAL_BLOCK_TEMPLATES).filter(([type, template]) => {
+                    if (template.category !== catName) return false;
+                    if (!paletteSearchQuery) return true;
+                    return template.title.toLowerCase().includes(paletteSearchQuery) || 
+                           template.category.toLowerCase().includes(paletteSearchQuery);
+                });
+
+                if (filteredInCat.length === 0) return;
+
+                const catGroup = document.createElement('div');
+                catGroup.className = "space-y-2 border-b border-slate-100 pb-3";
+
+                const catTitle = document.createElement('h4');
+                catTitle.className = "text-[11px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1";
+                
+                let iconHeaderColor = "bg-blue-500";
+                if (catName.includes('인공지능')) iconHeaderColor = "bg-indigo-500";
+                else if (catName.includes('조건')) iconHeaderColor = "bg-amber-500";
+                else if (catName.includes('제어')) iconHeaderColor = "bg-rose-500";
+                
+                catTitle.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${iconHeaderColor}"></span> ${catName}`;
+                catGroup.appendChild(catTitle);
+
+                filteredInCat.forEach(([type, template]) => {
+                    displayedCount++;
+                    const blockBtn = document.createElement('div');
+                    blockBtn.className = `border ${template.color} p-3 rounded-xl cursor-pointer block-card flex items-center justify-between text-[11px] font-bold transition-all`;
+                    blockBtn.onclick = () => addBlockToWorkspace(type);
+
+                    blockBtn.innerHTML = `
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="${template.icon}" class="w-4 h-4 shrink-0 text-slate-700"></i>
+                            <span>${template.title}</span>
+                        </div>
+                        <i data-lucide="plus" class="w-3.5 h-3.5 opacity-65"></i>
+                    `;
+
+                    catGroup.appendChild(blockBtn);
+                });
+
+                palette.appendChild(catGroup);
+            });
+
+            document.getElementById('palette-count').innerText = `${displayedCount} Blocks`;
+            lucide.createIcons();
+        }
+
+        function addBlockToWorkspace(type) {
+            const template = PAL_BLOCK_TEMPLATES[type];
+            if (!template) return;
+
+            const inputsClone = template.inputs ? template.inputs.map(inp => ({ ...inp })) : [];
+            const blockId = "block_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+
+            const newBlock = {
+                id: blockId,
+                type: type,
+                title: template.title,
+                icon: template.icon,
+                color: template.color,
+                btnColor: template.btnColor,
+                inputs: inputsClone
+            };
+
+            activeBlocks.push(newBlock);
+            renderWorkspaceCanvas();
+            showToast('블록 추가됨', `${template.title}이 캔버스 하단에 조립되었습니다.`, 'success');
+        }
+
+        function renderWorkspaceCanvas() {
+            const canvas = document.getElementById('workspace-canvas');
+            const emptyState = document.getElementById('canvas-empty-state');
+
+            if (activeBlocks.length === 0) {
+                emptyState.classList.remove('hidden');
+                const blocks = canvas.querySelectorAll('.canvas-block-instance');
+                blocks.forEach(b => b.remove());
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+                const blocks = canvas.querySelectorAll('.canvas-block-instance');
+                blocks.forEach(b => b.remove());
+            }
+
+            activeBlocks.forEach((block, index) => {
+                const blockEl = document.createElement('div');
+                blockEl.className = `canvas-block-instance bg-white border border-slate-200 p-4 rounded-2xl shadow-sm flex flex-col md:flex-row items-start md:items-center gap-4 relative group transition-all duration-200 animate-fade-in border-l-4`;
+                
+                const bType = block.type || '';
+
+                // 각 블록 그룹 고유 장식 보더 색상 매핑
+                if (bType.startsWith('GEMINI_')) {
+                    blockEl.classList.add('border-l-indigo-500');
+                } else if (bType === 'SET' || bType === 'UPDATE' || bType === 'PUSH' || bType === 'INCREMENT' || bType === 'TIMESTAMP') {
+                    blockEl.classList.add('border-l-blue-500');
+                } else if (bType === 'GET' || bType.startsWith('IF_') || bType === 'LOGIC_COMPARE') {
+                    blockEl.classList.add('border-l-amber-500');
+                } else if (bType === 'DELETE' || bType === 'CLEAR_PATH' || bType === 'COPY_NODE') {
+                    blockEl.classList.add('border-l-rose-500');
+                } else if (bType.startsWith('MATH_') || bType.startsWith('TEXT_')) {
+                    blockEl.classList.add('border-l-cyan-500');
+                } else if (bType.startsWith('ARRAY_')) {
+                    blockEl.classList.add('border-l-fuchsia-500');
+                } else if (bType.startsWith('FILE_') || bType.startsWith('WEB_')) {
+                    blockEl.classList.add('border-l-emerald-500');
+                } else {
+                    blockEl.classList.add('border-l-slate-400');
+                }
+
+                blockEl.setAttribute('id', block.id);
+
+                const controlCol = document.createElement('div');
+                controlCol.className = "flex items-center gap-1.5 shrink-0 select-none";
+                controlCol.innerHTML = `
+                    <div class="flex flex-col gap-0.5 items-center">
+                        <button onclick="moveBlock(${index}, 'up')" class="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-all" title="위로 이동">
+                            <i data-lucide="chevron-up" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="moveBlock(${index}, 'down')" class="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-slate-700 transition-all" title="아래로 이동">
+                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-300 font-mono text-[10px]">${index + 1}</span>
+                        <i data-lucide="${block.icon}" class="w-4.5 h-4.5 text-slate-700"></i>
+                        <span class="text-xs font-bold text-slate-800">${block.title}</span>
+                    </div>
+                `;
+                blockEl.appendChild(controlCol);
+
+                // 입력 필드 목록 생성
+                const inputsCol = document.createElement('div');
+                inputsCol.className = "flex-1 flex flex-wrap gap-2.5 items-center w-full";
+
+                // Defend against missing inputs arrays safely
+                const blockInputs = block.inputs || [];
+                blockInputs.forEach((input) => {
+                    const inputFieldWrapper = document.createElement('div');
+                    inputFieldWrapper.className = "flex items-center gap-1 bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-xl w-full md:w-auto";
+                    
+                    const labelSpan = document.createElement('span');
+                    labelSpan.className = "text-[10px] font-bold text-slate-400 uppercase shrink-0";
+                    labelSpan.innerText = input.label;
+
+                    let editableElement;
+                    if (input.type === 'select') {
+                        editableElement = document.createElement('select');
+                        editableElement.className = "bg-transparent text-xs text-slate-700 font-bold outline-none cursor-pointer p-0 border-0";
+                        input.options.forEach(opt => {
+                            const option = document.createElement('option');
+                            option.value = opt;
+                            option.text = opt;
+                            option.className = "text-slate-800";
+                            if (opt === input.value) option.selected = true;
+                            editableElement.appendChild(option);
+                        });
+                        editableElement.onchange = (e) => {
+                            input.value = e.target.value;
+                        };
+                    } else {
+                        editableElement = document.createElement('input');
+                        editableElement.type = 'text';
+                        editableElement.className = "bg-transparent text-xs text-slate-700 outline-none font-semibold placeholder:text-slate-300 w-full md:w-28 focus:bg-white rounded px-1 transition-all border-0 p-0";
+                        editableElement.placeholder = input.placeholder || '';
+                        editableElement.value = input.value || '';
+                        editableElement.oninput = (e) => {
+                            input.value = e.target.value;
+                        };
+                    }
+
+                    inputFieldWrapper.appendChild(labelSpan);
+                    inputFieldWrapper.appendChild(editableElement);
+                    inputsCol.appendChild(inputFieldWrapper);
+                });
+                blockEl.appendChild(inputsCol);
+
+                // 우측 끝 삭제 버튼 생성
+                const deleteCol = document.createElement('div');
+                deleteCol.className = "shrink-0 ml-auto flex items-center";
+                deleteCol.innerHTML = `
+                    <button onclick="removeBlockFromWorkspace('${block.id}')" class="p-1.5 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-all" title="블록 삭제">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                `;
+                blockEl.appendChild(deleteCol);
+
+                canvas.appendChild(blockEl);
+            });
+
+            lucide.createIcons();
+        }
+
+        function moveBlock(index, direction) {
+            if (direction === 'up' && index > 0) {
+                const temp = activeBlocks[index];
+                activeBlocks[index] = activeBlocks[index - 1];
+                activeBlocks[index - 1] = temp;
+            } else if (direction === 'down' && index < activeBlocks.length - 1) {
+                const temp = activeBlocks[index];
+                activeBlocks[index] = activeBlocks[index + 1];
+                activeBlocks[index + 1] = temp;
+            }
+            renderWorkspaceCanvas();
+        }
+
+        function removeBlockFromWorkspace(id) {
+            activeBlocks = activeBlocks.filter(b => b.id !== id);
+            renderWorkspaceCanvas();
+            showToast("블록 삭제", "조립판에서 성공적으로 블록이 제거되었습니다.", "info");
+        }
+
+        function clearWorkspace() {
+            if (activeBlocks.length === 0) return;
+            Swal.fire({
+                title: '조립판 비우기',
+                text: '현재 기입 중인 모든 블록들을 초기화하시겠습니까?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#e11d48',
+                confirmButtonText: '네, 비웁니다',
+                cancelButtonText: '취소'
+            }).then((res) => {
+                if (res.isConfirmed) {
+                    activeBlocks = [];
+                    renderWorkspaceCanvas();
+                    showToast("초기화 완료", "캔버스가 완벽히 정리되었습니다.", "success");
+                }
+            });
+        }
+
+        async function executeBlockProgram() {
+            if (activeBlocks.length === 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: '컴파일 불가',
+                    text: '조립판에 구성된 실행 활성 블록이 존재하지 않습니다.'
+                });
+                return;
+            }
+
+            appendConsoleLog("compile", "▶ 블록 프로그램 조립본 해석 및 컴파일 실행 시작...");
+            let successCount = 0;
+            let failCount = 0;
+
+            for (let i = 0; i < activeBlocks.length; i++) {
+                const block = activeBlocks[i];
+                const blockDOM = document.getElementById(block.id);
+                if (blockDOM) blockDOM.classList.add('block-running');
+
+                await new Promise(resolve => setTimeout(resolve, 400));
+
+                const inputsMap = {};
+                // Defend against missing inputs safely
+                const blockInputs = block.inputs || [];
+                blockInputs.forEach(inp => {
+                    inputsMap[inp.key] = inp.value ? inp.value.trim() : '';
+                });
+
+                try {
+                    const bType = block.type || '';
+
+                    // [인공지능 & Gemini API 연동 블록 실행 핵심 로직]
+                    if (bType === 'GEMINI_TEXT_GEN') {
+                        const rawPrompt = inputsMap.prompt;
+                        if (!rawPrompt) throw new Error("프롬프트 템플릿 대사가 비어있습니다.");
+                        const finalPrompt = await parseDynamicPrompt(rawPrompt);
+                        const systemInstruction = inputsMap.system || "친절한 AI 어시스턴트";
+                        
+                        appendConsoleLog("system", `🤖 [Gemini LLM 요청] 프롬프트 파싱 결과: "${finalPrompt}"`);
+                        
+                        const apiKey = "";
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                        const payload = {
+                            contents: [{ parts: [{ text: finalPrompt }] }],
+                            systemInstruction: {
+                                parts: [{ text: systemInstruction }]
+                            }
+                        };
+                        
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (!response.ok) throw new Error(`Gemini LLM 통신 응답 실패 (상태: ${response.status})`);
+                        const result = await response.json();
+                        const responseText = result.candidates?.[0]?.content?.parts?.[0]?.text || "결과 없음";
+                        
+                        const targetPath = inputsMap.path || "ai_output/text";
+                        await apiPut(targetPath, responseText);
+                        appendConsoleLog("response", `[성공] AI 생성 답변을 /${targetPath} 경로에 저장 완료.`);
+                        successCount++;
+
+                    } else if (bType === 'GEMINI_IMAGE_GEN') {
+                        const rawPrompt = inputsMap.prompt;
+                        if (!rawPrompt) throw new Error("그림 생성 프롬프트가 비어있습니다.");
+                        const finalPrompt = await parseDynamicPrompt(rawPrompt);
+                        
+                        appendConsoleLog("system", `🎨 [Imagen 묘사 요청] 프롬프트 파싱 결과: "${finalPrompt}"`);
+                        
+                        const apiKey = "";
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`;
+                        const payload = {
+                            instances: [{ prompt: finalPrompt }],
+                            parameters: { 
+                                sampleCount: 1,
+                                aspectRatio: inputsMap.property || "1:1"
+                            }
+                        };
+                        
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (!response.ok) throw new Error(`Imagen API 통신 실패 (상태: ${response.status})`);
+                        const result = await response.json();
+                        const base64Data = result.predictions?.[0]?.bytesBase64Encoded;
+                        if (!base64Data) throw new Error("인공지능 모델이 이미지 바이트 생성을 거부했습니다.");
+                        
+                        const imageUrl = `data:image/png;base64,${base64Data}`;
+                        const targetPath = inputsMap.path || "ai_output/image_base64";
+                        await apiPut(targetPath, imageUrl);
+                        appendConsoleLog("response", `[성공] AI 렌더링 결과 그래픽 데이터를 /${targetPath} 에 저장했습니다.`);
+                        successCount++;
+
+                    } else if (bType === 'GEMINI_TTS_GEN') {
+                        const rawPrompt = inputsMap.prompt;
+                        if (!rawPrompt) throw new Error("TTS로 낭독할 대사 텍스트가 비어있습니다.");
+                        const finalPrompt = await parseDynamicPrompt(rawPrompt);
+                        
+                        appendConsoleLog("system", `🗣 [Gemini TTS 합성 요청] 파싱 텍스트: "${finalPrompt}"`);
+                        
+                        const voiceMap = {
+                            'Zephyr (밝음)': 'Zephyr',
+                            'Puck (경쾌)': 'Puck',
+                            'Kore (차분)': 'Kore',
+                            'Fenrir (신남)': 'Fenrir',
+                            'Leda (차분)': 'Leda'
+                        };
+                        const voiceName = voiceMap[inputsMap.property] || 'Zephyr';
+
+                        const payload = {
+                            contents: [{
+                                parts: [{ text: finalPrompt }]
+                            }],
+                            generationConfig: {
+                                responseModalities: ["AUDIO"],
+                                speechConfig: {
+                                    voiceConfig: {
+                                        prebuiltVoiceConfig: { voiceName: voiceName }
+                                    }
+                                }
+                            },
+                            model: "gemini-2.5-flash-preview-tts"
+                        };
+                        
+                        const apiKey = "";
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (!response.ok) throw new Error(`TTS API 통신 오류 (상태: ${response.status})`);
+                        const result = await response.json();
+                        const part = result?.candidates?.[0]?.content?.parts?.[0];
+                        const audioData = part?.inlineData?.data;
+                        const mimeType = part?.inlineData?.mimeType;
+
+                        if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                            const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                            const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 24000;
+                            
+                            const rawBytes = decodeBase64ToArrayBuffer(audioData);
+                            const pcm16 = new Int16Array(rawBytes);
+                            const wavBlob = pcmToWav(pcm16, sampleRate);
+                            const audioUrl = URL.createObjectURL(wavBlob);
+                            
+                            const audio = new Audio(audioUrl);
+                            audio.play();
+                            appendConsoleLog("response", `🔊 [TTS 플레이] "${finalPrompt}" 자연 음성 낭독을 시작합니다.`);
+                        } else {
+                            throw new Error("올바른 오디오 바이너리 스트림이 반환되지 않았습니다.");
+                        }
+                        successCount++;
+
+                    // 데이터베이스 쓰기
+                    } else if (bType === 'SET') {
+                        if (!inputsMap.property) throw new Error("Key(속성 이름)이 기입되지 않았습니다.");
+                        let finalValue = inputsMap.value;
+                        if (finalValue === 'true') finalValue = true;
+                        else if (finalValue === 'false') finalValue = false;
+                        else if (!isNaN(finalValue) && finalValue !== "") finalValue = Number(finalValue);
+
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        await apiPut(targetPath, finalValue);
+                        appendConsoleLog("response", `[성공] /${targetPath} 경로에 "${finalValue}" 값을 덮어썼습니다.`);
+                        successCount++;
+
+                    } else if (bType === 'UPDATE') {
+                        if (!inputsMap.property) throw new Error("수정할 Key 이름이 정의되지 않았습니다.");
+                        let finalValue = inputsMap.value;
+                        if (finalValue === 'true') finalValue = true;
+                        else if (finalValue === 'false') finalValue = false;
+                        else if (!isNaN(finalValue) && finalValue !== "") finalValue = Number(finalValue);
+
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        await apiPut(targetPath, finalValue);
+                        appendConsoleLog("response", `[성공] /${targetPath} 경로의 값을 "${finalValue}"(으)로 부분 수정했습니다.`);
+                        successCount++;
+
+                    } else if (bType === 'PUSH') {
+                        if (!inputsMap.value) throw new Error("PUSH할 값 내용이 비어있습니다.");
+                        const generatedId = await apiPush(inputsMap.path || "/", inputsMap.value);
+                        appendConsoleLog("response", `[성공] /${inputsMap.path || 'root'} 하위에 고유 ID [${generatedId}] 생성 후 데이터 삽입 완료.`);
+                        successCount++;
+
+                    } else if (bType === 'INCREMENT') {
+                        if (!inputsMap.property) throw new Error("대상 속성 Key가 기입되지 않았습니다.");
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        const currentVal = Number(await apiGet(targetPath)) || 0;
+                        const finalVal = currentVal + 1;
+                        await apiPut(targetPath, finalVal);
+                        appendConsoleLog("response", `[성공] /${targetPath} 경로의 숫자를 1 증가시켰습니다. (${currentVal} -> ${finalVal})`);
+                        successCount++;
+
+                    } else if (bType === 'TIMESTAMP') {
+                        if (!inputsMap.property) throw new Error("시간을 기록할 속성 Key 이름이 필요합니다.");
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        const nowTime = new Date().toISOString();
+                        await apiPut(targetPath, nowTime);
+                        appendConsoleLog("response", `[성공] /${targetPath}에 현재 시간 정보[${nowTime}]를 기입했습니다.`);
+                        successCount++;
+
+                    // 데이터베이스 읽기 및 조건
+                    } else if (bType === 'GET') {
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        const dbVal = await apiGet(targetPath);
+                        appendConsoleLog("response", `[조회 결과] /${targetPath} 에 있는 값은 -> [${dbVal === null ? 'null(존재 안 함)' : JSON.stringify(dbVal)}] 입니다.`);
+                        successCount++;
+
+                    } else if (bType === 'IF_EQUAL') {
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        const dbVal = await apiGet(targetPath);
+                        const isMatch = String(dbVal) === inputsMap.value;
+                        appendConsoleLog("system", `[조건 비교] 실제 DB 값: "${dbVal}" vs 비교 대상 값: "${inputsMap.value}"`);
+                        
+                        if (isMatch) {
+                            appendConsoleLog("response", `🔔 [조건 충족] 만족 동작 실행 -> [${inputsMap.action}]`);
+                            if (inputsMap.action === '데이터 전체 삭제하기') {
+                                if (inputsMap.path) {
+                                    await apiDelete(inputsMap.path);
+                                    appendConsoleLog("response", `💥 /${inputsMap.path} 하위 데이터가 완전히 제거되었습니다.`);
+                                } else {
+                                    throw new Error("안전을 위해 루트 전체 삭제 동작은 차단되었습니다.");
+                                }
+                            } else {
+                                appendConsoleLog("response", `💬 알림 로그: "조건 만족 조건문 연산 결과 참(True)이 감지되었습니다."`);
+                            }
+                        } else {
+                            appendConsoleLog("system", `❌ [조건 불일치] 비교 판단 결과가 성립하지 않아 내부 하위 동작이 무시되었습니다.`);
+                        }
+                        successCount++;
+
+                    } else if (bType === 'IF_GREATER') {
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        const dbVal = Number(await apiGet(targetPath)) || 0;
+                        const threshold = Number(inputsMap.value) || 0;
+                        
+                        if (dbVal > threshold) {
+                            appendConsoleLog("response", `🔔 [조건 초과 성공] 실제 값(${dbVal})이 기준값(${threshold})보다 큽니다!`);
+                        } else {
+                            appendConsoleLog("system", `❌ [조건 불성립] 실제 값(${dbVal})이 기준값(${threshold}) 이하입니다.`);
+                        }
+                        successCount++;
+
+                    } else if (bType === 'IF_EXISTS') {
+                        const dbVal = await apiGet(inputsMap.path || "/");
+                        if (dbVal !== null) {
+                            appendConsoleLog("response", `🔔 [노드 감지 성공] /${inputsMap.path} 데이터가 정상적으로 존재합니다.`);
+                        } else {
+                            appendConsoleLog("system", `❌ [노드 감지 실패] /${inputsMap.path} 데이터가 감지되지 않았습니다 (null).`);
+                        }
+                        successCount++;
+
+                    } else if (bType === 'LOGIC_COMPARE') {
+                        if (!inputsMap.path) throw new Error("비교 대상 변수 1의 데이터 경로가 없습니다.");
+                        const val1 = await apiGet(inputsMap.path);
+                        const val2 = isNaN(inputsMap.value) ? inputsMap.value : Number(inputsMap.value);
+                        const op = inputsMap.property || '==';
+                        let logicResult = false;
+                        
+                        const numVal1 = isNaN(val1) ? val1 : Number(val1);
+                        
+                        if (op === '>') logicResult = numVal1 > val2;
+                        else if (op === '<') logicResult = numVal1 < val2;
+                        else if (op === '==') logicResult = String(numVal1) === String(val2);
+                        else if (op === '!=') logicResult = String(numVal1) !== String(val2);
+                        else if (op === '>=') logicResult = numVal1 >= val2;
+                        else if (op === '<=') logicResult = numVal1 <= val2;
+
+                        if (logicResult) {
+                            appendConsoleLog("response", `🔔 [논리 비교 성립] ${val1} ${op} ${val2} 판정: 참(True) 입니다.`);
+                        } else {
+                            appendConsoleLog("system", `❌ [논리 비교 실패] ${val1} ${op} ${val2} 판정: 거짓(False) 입니다.`);
+                        }
+                        successCount++;
+
+                    // 데이터베이스 제어
+                    } else if (bType === 'DELETE') {
+                        const targetPath = inputsMap.property ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.path;
+                        if (!targetPath) throw new Error("삭제할 대상 데이터 경로를 채워주세요.");
+                        await apiDelete(targetPath);
+                        appendConsoleLog("response", `[성공] /${targetPath} 경로 및 하위 트리 제거 완료.`);
+                        successCount++;
+
+                    } else if (bType === 'CLEAR_PATH') {
+                        if (!inputsMap.path) throw new Error("초기화할 폴더 경로를 지정하세요.");
+                        await apiPut(inputsMap.path, {});
+                        appendConsoleLog("response", `[성공] /${inputsMap.path} 하위 데이터를 완전히 비우고 {} 빈 노드로 초기화했습니다.`);
+                        successCount++;
+
+                    } else if (bType === 'COPY_NODE') {
+                        if (!inputsMap.path || !inputsMap.property) throw new Error("원본 경로와 복사해 갈 경로를 모두 기입해 주세요.");
+                        const currentData = await apiGet(inputsMap.path);
+                        if (currentData === null) throw new Error(`원본 경로(/${inputsMap.path})에 복사할 데이터가 없습니다.`);
+                        await apiPut(inputsMap.property, currentObjClone(currentData));
+                        appendConsoleLog("response", `[성공] /${inputsMap.path}의 노드를 /${inputsMap.property} 경로로 안전하게 복사 완료.`);
+                        successCount++;
+
+                    // 연산 및 문자 처리
+                    } else if (bType === 'MATH_ADD') {
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        const currentVal = await apiGet(targetPath);
+                        const addValue = Number(inputsMap.value);
+                        if (isNaN(addValue)) throw new Error("더할 수치는 반드시 올바른 숫자 유형이어야 합니다.");
+                        const calcResult = (Number(currentVal) || 0) + addValue;
+                        await apiPut(targetPath, calcResult);
+                        appendConsoleLog("response", `[성공] /${targetPath} 값 더하기 완료: ${currentVal || 0} + ${addValue} = ${calcResult}`);
+                        successCount++;
+
+                    } else if (bType === 'MATH_SUB') {
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        const currentVal = await apiGet(targetPath);
+                        const subValue = Number(inputsMap.value);
+                        if (isNaN(subValue)) throw new Error("뺄 수치는 숫자 유형이어야 합니다.");
+                        const calcResult = (Number(currentVal) || 0) - subValue;
+                        await apiPut(targetPath, calcResult);
+                        appendConsoleLog("response", `[성공] /${targetPath} 값 빼기 완료: ${currentVal || 0} - ${subValue} = ${calcResult}`);
+                        successCount++;
+
+                    } else if (bType === 'MATH_MUL') {
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        const currentVal = await apiGet(targetPath);
+                        const mulValue = Number(inputsMap.value);
+                        if (isNaN(mulValue)) throw new Error("곱할 수치는 숫자 유형이어야 합니다.");
+                        const calcResult = (Number(currentVal) || 0) * mulValue;
+                        await apiPut(targetPath, calcResult);
+                        appendConsoleLog("response", `[성공] /${targetPath} 값 곱하기 완료: ${currentVal || 0} * ${mulValue} = ${calcResult}`);
+                        successCount++;
+
+                    } else if (bType === 'MATH_RANDOM') {
+                        const min = Number(inputsMap.property) || 1;
+                        const max = Number(inputsMap.value) || 100;
+                        if (min > max) throw new Error("랜덤 최소값이 최대값보다 클 수 없습니다.");
+                        const randomVal = Math.floor(Math.random() * (max - min + 1)) + min;
+                        await apiPut(inputsMap.path || "system_config/random_value", randomVal);
+                        appendConsoleLog("response", `[성공] 무작위 난수(${randomVal})를 생성하여 /${inputsMap.path || 'system_config/random_value'} 에 저장 완료.`);
+                        successCount++;
+
+                    } else if (bType === 'MATH_ROUND') {
+                        if (!inputsMap.path) throw new Error("대상 소수 경로를 채워주세요.");
+                        const currentVal = Number(await apiGet(inputsMap.path));
+                        if (isNaN(currentVal)) throw new Error("해당 경로의 값이 숫자 포맷이 아닙니다.");
+                        let calcResult;
+                        if (inputsMap.property === '올림 (Ceil)') {
+                            calcResult = Math.ceil(currentVal);
+                        } else if (inputsMap.property === '내림 (Floor)') {
+                            calcResult = Math.floor(currentVal);
+                        } else {
+                            calcResult = Math.round(currentVal);
+                        }
+                        await apiPut(inputsMap.path, calcResult);
+                        appendConsoleLog("response", `[성공] /${inputsMap.path} 값을 ${inputsMap.property} 변환했습니다: ${currentVal} -> ${calcResult}`);
+                        successCount++;
+
+                    } else if (bType === 'TEXT_CONCAT') {
+                        const targetPath = inputsMap.path ? `${inputsMap.path}/${inputsMap.property}` : inputsMap.property;
+                        const currentText = await apiGet(targetPath);
+                        const concatenated = (currentText ? String(currentText) : "") + inputsMap.value;
+                        await apiPut(targetPath, concatenated);
+                        appendConsoleLog("response", `[성공] /${targetPath} 텍스트 병합 완료 -> "${concatenated}"`);
+                        successCount++;
+
+                    } else if (bType === 'TEXT_REPLACE') {
+                        const targetPath = inputsMap.path;
+                        if (!targetPath) throw new Error("치환 대상 텍스트 경로를 지정하세요.");
+                        const originalText = String(await apiGet(targetPath) || "");
+                        const replaced = originalText.replace(new RegExp(inputsMap.property, 'g'), inputsMap.value);
+                        await apiPut(targetPath, replaced);
+                        appendConsoleLog("response", `[성공] /${targetPath} 문자 치환 완료 -> "${originalText}"을 "${replaced}"로 교체했습니다.`);
+                        successCount++;
+
+                    // 배열 및 JSON 조작
+                    } else if (bType === 'ARRAY_PUSH') {
+                        if (!inputsMap.path) throw new Error("배열 데이터 경로를 입력해 주세요.");
+                        let currentArray = await apiGet(inputsMap.path);
+                        if (!Array.isArray(currentArray)) {
+                            currentArray = currentArray ? [currentArray] : [];
+                        }
+                        let addedValue = inputsMap.value;
+                        if (!isNaN(addedValue) && addedValue !== "") addedValue = Number(addedValue);
+                        currentArray.push(addedValue);
+                        await apiPut(inputsMap.path, currentArray);
+                        appendConsoleLog("response", `[성공] /${inputsMap.path} 배열에 원소 [${addedValue}]를 추가했습니다.`);
+                        successCount++;
+
+                    } else if (bType === 'ARRAY_POP') {
+                        if (!inputsMap.path) throw new Error("배열 데이터 경로를 입력해 주세요.");
+                        let currentArray = await apiGet(inputsMap.path);
+                        if (!Array.isArray(currentArray) || currentArray.length === 0) {
+                            throw new Error("대상 경로가 배열이 아니거나 비어있습니다.");
+                        }
+                        const popped = currentArray.pop();
+                        await apiPut(inputsMap.path, currentArray);
+                        appendConsoleLog("response", `[성공] /${inputsMap.path} 배열에서 마지막 원소 [${popped}]를 성공적으로 추출 제거했습니다.`);
+                        successCount++;
+
+                    // 파일 및 외부 웹 데이터 처리
+                    } else if (bType === 'FILE_EXPORT') {
+                        if (!inputsMap.path) throw new Error("내보낼 대상 데이터 경로가 지정되지 않았습니다.");
+                        const expData = await apiGet(inputsMap.path);
+                        if (expData === null) throw new Error("해당 경로의 데이터가 비어 있습니다.");
+                        const blob = new Blob([JSON.stringify(expData, null, 4)], { type: "application/json" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = inputsMap.value || "backup.json";
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        appendConsoleLog("response", `[성공] /${inputsMap.path} 하위 데이터를 로컬 파일 [${inputsMap.value || 'backup.json'}]로 즉시 다운로드 완료.`);
+                        successCount++;
+
+                    } else if (bType === 'WEB_API_GET') {
+                        if (!inputsMap.value) throw new Error("요청할 외부 API URL이 공백입니다.");
+                        const apiRes = await fetch(inputsMap.value);
+                        if (!apiRes.ok) throw new Error(`네트워크 오류 발생 (상태: ${apiRes.status})`);
+                        const apiJson = await apiRes.json();
+                        const targetPath = inputsMap.path || "system_config/external_api";
+                        await apiPut(targetPath, apiJson);
+                        appendConsoleLog("response", `[성공] 외부 API 호출 데이터를 받아서 /${targetPath} 경로에 덮어썼습니다.`);
+                        successCount++;
+
+                    // 유틸리티 및 알림
+                    } else if (bType === 'CONSOLE_LOG') {
+                        appendConsoleLog("response", `💬 사용자 로그 메세지: "${inputsMap.value || '비어 있는 로그'}"`);
+                        successCount++;
+
+                    } else if (bType === 'PLAY_BUZZER') {
+                        playSynthSound(inputsMap.value);
+                        appendConsoleLog("response", `🔊 피치 효과음 재생 성공: [${inputsMap.value}]`);
+                        successCount++;
+
+                    } else if (bType === 'SPEECH_SAY') {
+                        if (!inputsMap.value) throw new Error("말할 내용이 비어있습니다.");
+                        playWebSpeechTTS(inputsMap.value);
+                        appendConsoleLog("response", `🗣 컴퓨터 TTS 한국어 음성 출력 완료: "${inputsMap.value}"`);
+                        successCount++;
+
+                    } else if (bType === 'VIRTUAL_ALERT') {
+                        Swal.fire({
+                            title: inputsMap.property || "알림",
+                            text: inputsMap.value || "메시지가 비어있습니다.",
+                            icon: "info",
+                            confirmButtonColor: "#2563eb"
+                        });
+                        appendConsoleLog("response", `💬 화면에 가상 알림 상자 팝업 실행 완료.`);
+                        successCount++;
+
+                    } else if (bType === 'BROWSER_COPY') {
+                        if (!inputsMap.path) throw new Error("복사 타겟 경로가 지정되지 않았습니다.");
+                        const targetVal = await apiGet(inputsMap.path);
+                        if (targetVal === null) throw new Error("복사할 데이터 대상이 존재하지 않습니다 (null).");
+                        const finalCopyStr = typeof targetVal === 'object' ? JSON.stringify(targetVal, null, 2) : String(targetVal);
+                        
+                        const tempInput = document.createElement("textarea");
+                        tempInput.value = finalCopyStr;
+                        document.body.appendChild(tempInput);
+                        tempInput.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(tempInput);
+                        appendConsoleLog("response", `[성공] /${inputsMap.path} 데이터를 문자열로 가공하여 클립보드에 카피했습니다.`);
+                        successCount++;
+
+                    } else if (bType === 'DELAY_WAIT') {
+                        const seconds = Number(inputsMap.value) || 1;
+                        appendConsoleLog("system", `⏳ ${seconds}초 동안 대기 연산을 수행합니다...`);
+                        await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+                        appendConsoleLog("response", `⌛ ${seconds}초 대기 완료. 다음 블록을 실행합니다.`);
+                        successCount++;
+                    }
+
+                } catch (err) {
+                    console.error(err);
+                    appendConsoleLog("error", `❌ [블록 ${i + 1} 실행 실패] -> ${err.message}`);
+                    failCount++;
+                }
+
+                if (blockDOM) blockDOM.classList.remove('block-running');
+            }
+
+            appendConsoleLog("compile", `■ 컴파일러 순회 완료 (성공: ${successCount}건, 실패: ${failCount}건)`);
+        }
+
+        function playSynthSound(pitchType) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.type = 'sine';
+                
+                let frequency = 440;
+                if (pitchType === '높음 (High)') {
+                    frequency = 880;
+                } else if (pitchType === '낮음 (Low)') {
+                    frequency = 220;
+                }
+
+                oscillator.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.4);
+            } catch (e) {
+                console.warn("효과음 재생 에러:", e);
+            }
+        }
+
+        function playWebSpeechTTS(message) {
+            try {
+                if ('speechSynthesis' in window) {
+                    window.speechSynthesis.cancel();
+                    
+                    const utterance = new SpeechSynthesisUtterance(message);
+                    utterance.lang = 'ko-KR';
+                    utterance.pitch = 1.0;
+                    utterance.rate = 1.0;
+                    
+                    window.speechSynthesis.speak(utterance);
+                } else {
+                    console.warn("이 브라우저는 음성 합성(SpeechSynthesis) 기능을 지원하지 않습니다.");
+                }
+            } catch (e) {
+                console.error("음성 합성 TTS 도중 예외:", e);
+            }
+        }
+
+        function currentObjClone(obj) {
+            return JSON.parse(JSON.stringify(obj));
+        }
+
+        function appendConsoleLog(type, message) {
+            const container = document.getElementById('console-logs');
+            const now = new Date();
+            const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+
+            const row = document.createElement('div');
+            row.className = "py-0.5 border-b border-slate-850 flex items-start gap-2 text-[11px] leading-relaxed";
+
+            let typeBadge = "[SYS]";
+            let typeColor = "text-slate-400";
+
+            if (type === 'auth') {
+                typeBadge = "[AUTH]";
+                typeColor = "text-blue-400 font-extrabold";
+            } else if (type === 'compile') {
+                typeBadge = "[BLOCK]";
+                typeColor = "text-indigo-400 font-extrabold";
+            } else if (type === 'response') {
+                typeBadge = "[DONE]";
+                typeColor = "text-emerald-400 font-extrabold";
+            } else if (type === 'error') {
+                typeBadge = "[FAIL]";
+                typeColor = "text-rose-500 font-extrabold animate-pulse";
+            }
+
+            row.innerHTML = `
+                <span class="text-slate-650 font-mono shrink-0 select-none">${timeStr}</span>
+                <span class="${typeColor} shrink-0">${typeBadge}</span>
+                <span class="text-slate-350 break-all select-text">${message}</span>
+            `;
+
+            container.appendChild(row);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('console-logs').innerHTML = `<p class="text-slate-500">// 실시간 로그가 여기에 출력됩니다.</p>`;
+        }
+
+        function downloadJsonBackup() {
+            let dataToDownload = {};
+            if (currentDbUrl.startsWith("local://")) {
+                dataToDownload = getLocalDbObject();
+            } else {
+                const previewText = document.getElementById('db-json-preview').innerText;
+                try {
+                    dataToDownload = JSON.parse(previewText);
+                } catch (e) {
+                    showToast('백업 실패', '유효한 JSON 로드 대기 중입니다.', 'error');
+                    return;
+                }
+            }
+
+            const blob = new Blob([JSON.stringify(dataToDownload, null, 4)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `pal_block_backup_${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            showToast('백업 완료', '데이터베이스가 JSON 파일로 컴퓨터에 다운로드되었습니다.', 'success');
+        }
+
+        function showToast(title, text, icon) {
+            const Toast = Swal.mixin({
+                toast: true,
+                position: 'bottom-end',
+                showConfirmButton: false,
+                timer: 3000,
+                timerProgressBar: true
+            });
+            Toast.fire({ icon: icon, title: title, text: text });
+        }
+
+        window.onload = function () {
+            lucide.createIcons();
+            renderBlockPalette();
+            renderWorkspaceCanvas();
+        }
+    </script>
+</body>
+</html>
