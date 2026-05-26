@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>사암에서 규암으로: 지구의 거대한 연금술</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;700&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #FDFCF0; }
+        .chart-container { position: relative; width: 100%; max-width: 650px; margin-left: auto; margin-right: auto; height: 350px; max-height: 400px; }
+        @media (min-width: 768px) { .chart-container { height: 400px; } }
+        .gradient-text { background: linear-gradient(135deg, #D97706, #7C2D12); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <!-- Chosen Palette: "Vibrant Earth & Mineral" (Ambers, Deep Oranges, Earthy Reds, Quartz Purples) -->
+    <!--
+    Summary of Narrative:
+    1. Introduction: The concept of Metamorphism as geological alchemy.
+    2. The Catalyst: Visualizing the extreme Pressure and Temperature required.
+    3. The Fusion: Explaining Recrystallization where grains melt and merge.
+    4. Before vs After: A direct data comparison between Sandstone and Quartzite.
+    5. Conclusion: Quartzite's role in the natural world.
+
+    Visualization Choices:
+    - Temperature/Pressure Range: Plotly Scatter Plot (WebGL) to show the "Metamorphic Window".
+    - Physical Property Comparison: Chart.js Bar Chart comparing Hardness, Density, and Porosity.
+    - The Transformation Flow: HTML/CSS Grid-based flowchart (No SVG).
+    - Hardness Scale: Large Stat display for Mohs scale.
+
+    NO SVG, NO MERMAID JS used.
+    -->
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header Section -->
+        <header class="text-center mb-12">
+            <h1 class="text-4xl md:text-6xl font-bold mb-4 gradient-text">사암에서 규암으로</h1>
+            <p class="text-lg text-gray-700 max-w-2xl mx-auto">
+                퇴적암인 사암이 지구의 강력한 열과 압력을 견뎌내고 세상에서 가장 단단한 암석 중 하나인 규암으로 변하는 신비로운 여정을 살펴봅니다.
+            </p>
+        </header>
+
+        <!-- Section 1: The Metamorphic Environment -->
+        <section class="mb-16">
+            <div class="bg-white rounded-3xl shadow-xl p-8 border-t-8 border-amber-500">
+                <h2 class="text-3xl font-bold text-amber-900 mb-6">1. 변성의 방: 온도와 압력</h2>
+                <p class="text-gray-600 mb-8 leading-relaxed">
+                    변성 작용은 단순히 돌이 눌리는 것 이상의 현상입니다. 사암이 규암이 되기 위해서는 지하 수 킬로미터 아래에서 수백 도의 열과 수천 기압의 압력이 필요합니다. 이 환경에서 석영 입자들은 고체 상태를 유지하면서도 서로 엉겨 붙기 시작합니다.
+                </p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
+                    <div id="envPlot" class="w-full h-96 bg-gray-50 rounded-xl overflow-hidden"></div>
+                    <div class="space-y-4">
+                        <div class="bg-amber-50 p-6 rounded-2xl border-l-4 border-amber-400">
+                            <h3 class="font-bold text-amber-800 mb-2">필요 온도 (Temperature)</h3>
+                            <p class="text-sm text-amber-900">약 200°C에서 600°C 사이. 이 온도에서 석영 알갱이의 표면이 재결정화되기 시작합니다.</p>
+                        </div>
+                        <div class="bg-orange-50 p-6 rounded-2xl border-l-4 border-orange-400">
+                            <h3 class="font-bold text-orange-800 mb-2">필요 압력 (Pressure)</h3>
+                            <p class="text-sm text-orange-900">수백 MPa(메가파스칼) 이상의 압력. 지각 판이 충돌하는 조산 운동 과정에서 주로 발생합니다.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: The Transformation Flow (HTML/CSS Diagram) -->
+        <section class="mb-16">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-10">2. 변화의 3단계: 재결정 작용</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Step 1 -->
+                <div class="flex flex-col items-center text-center p-6 bg-white rounded-2xl shadow-md border-b-4 border-yellow-400">
+                    <div class="w-16 h-16 bg-yellow-400 text-white rounded-full flex items-center justify-center text-2xl font-bold mb-4">01</div>
+                    <h3 class="font-bold text-xl mb-2 text-yellow-700">초기 사암</h3>
+                    <p class="text-sm text-gray-500">모래 알갱이 사이에 빈 공간(공극)이 있고, 입자들이 본드 역할을 하는 광물에 의해 느슨하게 붙어 있습니다.</p>
+                </div>
+                <!-- Step 2 -->
+                <div class="flex flex-col items-center text-center p-6 bg-white rounded-2xl shadow-md border-b-4 border-orange-500">
+                    <div class="w-16 h-16 bg-orange-500 text-white rounded-full flex items-center justify-center text-2xl font-bold mb-4">02</div>
+                    <h3 class="font-bold text-xl mb-2 text-orange-700">입자 융합</h3>
+                    <p class="text-sm text-gray-500 text-sm">강한 열과 압력으로 알갱이의 경계가 녹아들며 서로의 빈틈을 메우기 시작합니다.</p>
+                </div>
+                <!-- Step 3 -->
+                <div class="flex flex-col items-center text-center p-6 bg-white rounded-2xl shadow-md border-b-4 border-red-600">
+                    <div class="w-16 h-16 bg-red-600 text-white rounded-full flex items-center justify-center text-2xl font-bold mb-4">03</div>
+                    <h3 class="font-bold text-xl mb-2 text-red-800">결정질 규암</h3>
+                    <p class="text-sm text-gray-500">모든 입자가 완전히 하나로 합쳐져 거대한 석영 덩어리가 됩니다. 이제 입자 사이의 경계는 의미가 없습니다.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Data Comparison -->
+        <section class="mb-16">
+            <div class="bg-gray-900 rounded-3xl shadow-2xl p-8 text-white">
+                <h2 class="text-3xl font-bold mb-8 text-center">3. 사암 vs 규암: 물리적 변화 데이터</h2>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <div class="chart-container">
+                            <canvas id="comparisonChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="space-y-6">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="p-6 bg-gray-800 rounded-2xl text-center">
+                                <span class="block text-gray-400 text-sm mb-1">사암 강도 (Mohs)</span>
+                                <span class="text-4xl font-bold text-yellow-400">~6.5</span>
+                            </div>
+                            <div class="p-6 bg-gray-800 rounded-2xl text-center">
+                                <span class="block text-gray-400 text-sm mb-1">규암 강도 (Mohs)</span>
+                                <span class="text-4xl font-bold text-red-500">7.0+</span>
+                            </div>
+                        </div>
+                        <p class="text-gray-300 leading-relaxed">
+                            차트를 보면 규암이 사암보다 훨씬 밀도가 높고 공극률이 낮은 것을 알 수 있습니다. 
+                            <strong>모스 굳기계 7</strong>에 달하는 규암의 단단함은 강철 칼로도 흠집을 내기 어려울 정도입니다. 특히 사암은 충격을 주면 입자 사이가 부서지지만, 규암은 알갱이 자체를 뚫고 날카롭게 깨지는 특성이 있습니다.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="text-center text-gray-500 text-sm py-8 border-t border-gray-200">
+            <p>© 2024 지구 지질학 연구소 | 변성 작용 데이터 시각화 리포트</p>
+            <p class="mt-2">본 데이터는 일반적인 석영 사암과 결정질 규암의 평균치를 기반으로 작성되었습니다.</p>
+        </footer>
+    </div>
+
+    <script>
+        // Chart.js Configuration for Physical Comparison
+        const ctx = document.getElementById('comparisonChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [['밀도', '(g/cm³)'], ['공극률', '(%)'], ['내구성', '(상대지수)']],
+                datasets: [
+                    {
+                        label: '사암 (Sandstone)',
+                        data: [2.3, 15, 40],
+                        backgroundColor: '#FBBF24',
+                        borderRadius: 8
+                    },
+                    {
+                        label: '규암 (Quartzite)',
+                        data: [2.65, 1, 95],
+                        backgroundColor: '#EF4444',
+                        borderRadius: 8
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: { color: '#FFFFFF', font: { weight: 'bold' } }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            title: function(tooltipItems) {
+                                const item = tooltipItems[0];
+                                let label = item.chart.data.labels[item.dataIndex];
+                                if (Array.isArray(label)) {
+                                    return label.join(' ');
+                                } else {
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: '#374151' },
+                        ticks: { color: '#9CA3AF' }
+                    },
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#9CA3AF' }
+                    }
+                }
+            }
+        });
+
+        // Plotly Configuration for Metamorphic Environment
+        const trace1 = {
+            x: [100, 200, 350, 500, 650],
+            y: [1, 3, 6, 8, 10],
+            mode: 'markers+lines',
+            name: '사암 영역',
+            line: { shape: 'spline', color: '#F59E0B' },
+            type: 'scatter'
+        };
+
+        const trace2 = {
+            x: [400, 450, 500, 550, 600],
+            y: [12, 15, 18, 22, 25],
+            mode: 'markers+lines',
+            name: '규암 변성 영역',
+            fill: 'toself',
+            fillcolor: 'rgba(239, 68, 68, 0.2)',
+            line: { shape: 'spline', color: '#EF4444' },
+            type: 'scatter'
+        };
+
+        const layout = {
+            title: '변성 작용 온도-압력 윈도우',
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            xaxis: { title: '온도 (°C)', gridcolor: '#E5E7EB' },
+            yaxis: { title: '압력 (km 깊이 상당)', gridcolor: '#E5E7EB' },
+            showlegend: true,
+            margin: { t: 50, l: 50, r: 20, b: 50 }
+        };
+
+        const config = { responsive: true, displayModeBar: false };
+        Plotly.newPlot('envPlot', [trace1, trace2], layout, config);
+    </script>
+</body>
+</html>
